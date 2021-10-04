@@ -1726,7 +1726,7 @@ void AZ::FFont::DrawScreenAlignedText3d(
     {
         return;
     }
-    AZ::Vector3 positionNDC = AzFramework::WorldToScreenNdc(
+    AZ::Vector3 positionNDC = AzFramework::WorldToScreenNDC(
         params.m_position,
         currentView->GetWorldToViewMatrix(),
         currentView->GetViewToClipMatrix()
