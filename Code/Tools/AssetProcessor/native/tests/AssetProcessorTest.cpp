@@ -10,7 +10,6 @@
 
 #include <AzCore/Settings/SettingsRegistryMergeUtils.h>
 #include <AzCore/UserSettings/UserSettingsComponent.h>
-#include <AzCore/IO/FileIOEventBus.h>
 #include <AzCore/Utils/Utils.h>
 
 #include "BaseAssetProcessorTest.h"
@@ -55,13 +54,11 @@ namespace AssetProcessor
     };
 
     class LegacyTestAdapter : public AssetProcessorTest,
-        public ::testing::WithParamInterface<std::string>,
-        public AZ::IO::FileIOEventBus::Handler
+        public ::testing::WithParamInterface<std::string>
     {
         void SetUp() override
         {
             AssetProcessorTest::SetUp();
-            AZ::IO::FileIOEventBus::Handler::BusConnect();
             
             static int numParams = 1;
             static char processName[] = {"AssetProcessorBatch"};
@@ -71,12 +68,13 @@ namespace AssetProcessor
             auto registry = AZ::SettingsRegistry::Get();
             auto bootstrapKey = AZ::SettingsRegistryInterface::FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey);
             auto projectPathKey = bootstrapKey + "/project_path";
-            registry->Set(projectPathKey, "AutomatedTesting");
+            AZ::IO::FixedMaxPath enginePath;
+            registry->Get(enginePath.Native(), AZ::SettingsRegistryMergeUtils::FilePathKey_EngineRootFolder);
+            registry->Set(projectPathKey, (enginePath / "AutomatedTesting").Native());
             AZ::SettingsRegistryMergeUtils::MergeSettingsToRegistry_AddRuntimeFilePaths(*registry);
 
             // Forcing the branch token into settings registry before starting the application manager.
             // This avoids writing the asset_processor.setreg file which can cause fileIO errors.
-            AZ::IO::FixedMaxPathString enginePath = AZ::Utils::GetEnginePath();
             auto branchTokenKey = bootstrapKey + "/assetProcessor_branch_token";
             AZStd::string token;
             AzFramework::StringFunc::AssetPath::CalculateBranchToken(enginePath.c_str(), token);
@@ -90,16 +88,7 @@ namespace AssetProcessor
         void TearDown() override
         {
             m_application.reset();
-            AZ::IO::FileIOEventBus::Handler::BusDisconnect();
             AssetProcessorTest::TearDown();
-        }
-
-        void OnError(
-            [[maybe_unused]] const AZ::IO::SystemFile* file,
-            [[maybe_unused]] const char* fileName,
-            [[maybe_unused]] int errorCode) override
-        {
-            AZ_Error("LegacyTestAdapter", false, "File error detected with %s with code %d", fileName, errorCode);
         }
 
         AZStd::unique_ptr<UnitTestAppManager> m_application;

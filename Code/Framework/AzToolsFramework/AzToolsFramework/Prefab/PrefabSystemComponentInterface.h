@@ -67,7 +67,7 @@ namespace AzToolsFramework
 
             virtual PrefabDom& FindTemplateDom(TemplateId templateId) = 0;
             virtual void UpdatePrefabTemplate(TemplateId templateId, const PrefabDom& updatedDom) = 0;
-            virtual void PropagateTemplateChanges(TemplateId templateId, bool immediate = false, InstanceOptionalReference instanceToExclude = AZStd::nullopt) = 0;
+            virtual void PropagateTemplateChanges(TemplateId templateId, InstanceOptionalConstReference instanceToExclude = AZStd::nullopt) = 0;
 
             virtual AZStd::unique_ptr<Instance> InstantiatePrefab(
                 AZ::IO::PathView filePath, InstanceOptionalReference parent = AZStd::nullopt) = 0;
@@ -78,8 +78,7 @@ namespace AzToolsFramework
                 AZStd::unique_ptr<AZ::Entity> containerEntity = nullptr, InstanceOptionalReference parent = AZStd::nullopt,
                 bool shouldCreateLinks = true) = 0;
         };
-
-
+        
     } // namespace Prefab
 } // namespace AzToolsFramework
 

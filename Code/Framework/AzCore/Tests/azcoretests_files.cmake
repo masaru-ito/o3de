@@ -61,6 +61,7 @@ set(FILES
     Slice.cpp
     State.cpp
     Statistics.cpp
+    StatisticalProfiler.cpp
     StreamerTests.cpp
     StringFunc.cpp
     SystemFile.cpp
@@ -68,17 +69,18 @@ set(FILES
     TickBusTest.cpp
     UUIDTests.cpp
     XML.cpp
-    Debug/AssetTracking.cpp
     Debug/LocalFileEventLoggerTests.cpp
     Debug/Trace.cpp
+    Debug/UnhandledExceptions.cpp
     Name/NameJsonSerializerTests.cpp
     Name/NameTests.cpp
     RTTI/TypeSafeIntegralTests.cpp
-    SettingsRegistryTests.cpp
-    SettingsRegistryMergeUtilsTests.cpp
     Settings/CommandLineTests.cpp
+    Settings/SettingsRegistryTests.cpp
     Settings/SettingsRegistryConsoleUtilsTests.cpp
+    Settings/SettingsRegistryMergeUtilsTests.cpp
     Settings/SettingsRegistryScriptUtilsTests.cpp
+    Settings/SettingsRegistryVisitorUtilsTests.cpp
     Streamer/BlockCacheTests.cpp
     Streamer/DedicatedCacheTests.cpp
     Streamer/FullDecompressorTests.cpp
@@ -118,6 +120,7 @@ set(FILES
     Serialization/Json/TestCases_Classes.cpp
     Serialization/Json/TestCases_Compare.cpp
     Serialization/Json/TestCases_Enum.cpp
+    Serialization/Json/TestCases_Importing.cpp
     Serialization/Json/TestCases_Patching.cpp
     Serialization/Json/TestCases_Pointers.h
     Serialization/Json/TestCases_Pointers.cpp
@@ -127,6 +130,7 @@ set(FILES
     Serialization/Json/UnorderedSetSerializerTests.cpp
     Serialization/Json/UnsupportedTypesSerializerTests.cpp
     Serialization/Json/UuidSerializerTests.cpp
+    Time/TimeTests.cpp
     Math/AabbTests.cpp
     Math/ColorTests.cpp
     Math/CrcTests.cpp
@@ -192,6 +196,7 @@ set(FILES
     AZStd/LockFreeQueues.cpp
     AZStd/LockFreeStacks.cpp
     AZStd/LockTests.cpp
+    AZStd/Math.cpp
     AZStd/Numeric.cpp
     AZStd/Ordered.cpp
     AZStd/Optional.cpp
@@ -207,6 +212,8 @@ set(FILES
     AZStd/Variant.cpp
     AZStd/VariantSerialization.cpp
     AZStd/VectorAndArray.cpp
+    DOM/DomJsonTests.cpp
+    DOM/DomJsonBenchmarks.cpp
 )
 
 # Prevent the following files from being grouped in UNITY builds

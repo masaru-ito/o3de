@@ -10,7 +10,6 @@
 
 #include <Atom/RPI.Public/Shader/ShaderResourceGroup.h>
 
-#include <AzCore/Debug/EventTrace.h>
 #include <AtomCore/Instance/InstanceDatabase.h>
 
 namespace AZ
@@ -75,7 +74,7 @@ namespace AZ
 
         RHI::ResultCode ShaderResourceGroup::Init(ShaderAsset& shaderAsset, const SupervariantIndex& supervariantIndex, const AZ::Name& srgName)
         {
-            AZ_TRACE_METHOD();
+            AZ_PROFILE_FUNCTION(RPI);
 
             const auto& lay = shaderAsset.FindShaderResourceGroupLayout(srgName, supervariantIndex);
             m_layout = lay.get();
@@ -114,6 +113,10 @@ namespace AZ
         void ShaderResourceGroup::Compile()
         {
             m_shaderResourceGroup->Compile(m_data);
+
+            //Disable compilation for all resource types as a performance optimization
+            //No need to re-update SRG data on GPU timeline if nothing was updated.
+            m_data.DisableCompilationForAllResourceTypes();
         }
 
         bool ShaderResourceGroup::IsQueuedForCompile() const
@@ -578,6 +581,11 @@ namespace AZ
                 return AZStd::array_view<Data::Instance<Buffer>>(&m_bufferGroup[interval.m_min], interval.m_max - interval.m_min);
             }
             return {};
+        }
+
+        void ShaderResourceGroup::ResetViews()
+        {
+            m_data.ResetViews();
         }
 
         const RHI::SamplerState& ShaderResourceGroup::GetSampler(RHI::ShaderInputNameIndex& inputIndex, uint32_t arrayIndex) const

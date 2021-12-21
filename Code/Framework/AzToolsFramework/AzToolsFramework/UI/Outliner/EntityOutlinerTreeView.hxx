@@ -26,6 +26,7 @@ class QMouseEvent;
 namespace AzToolsFramework
 {
     class EditorEntityUiInterface;
+    class ReadOnlyEntityPublicInterface;
 
     //! This class largely exists to emit events for the OutlinerWidget to listen in on.
     //! The logic for these events is best off not happening within the tree itself,
@@ -64,7 +65,7 @@ namespace AzToolsFramework
         void leaveEvent(QEvent* event) override;
 
         // FocusModeNotificationBus overrides ...
-        void OnEditorFocusChanged(AZ::EntityId entityId) override;
+        void OnEditorFocusChanged(AZ::EntityId previousFocusEntityId, AZ::EntityId newFocusEntityId) override;
 
         //! Renders the left side of the item: appropriate background, branch lines, icons.
         void drawBranches(QPainter* painter, const QRect& rect, const QModelIndex& index) const override;
@@ -90,7 +91,10 @@ namespace AzToolsFramework
         const QColor m_selectedColor = QColor(255, 255, 255, 45);
         const QColor m_hoverColor = QColor(255, 255, 255, 30);
 
-        EditorEntityUiInterface* m_editorEntityFrameworkInterface;
+        QModelIndex m_currentHoveredIndex;
+
+        EditorEntityUiInterface* m_editorEntityFrameworkInterface = nullptr;
+        ReadOnlyEntityPublicInterface* m_readOnlyEntityPublicInterface = nullptr;
     };
 
 }

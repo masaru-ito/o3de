@@ -21,7 +21,7 @@
 
 namespace AzToolsFramework
 {
-    constexpr const char s_traceName[] = "ArchiveComponent";
+    [[maybe_unused]] constexpr const char s_traceName[] = "ArchiveComponent";
     constexpr AZ::u32 s_compressionMethod = AZ::IO::INestedArchive::METHOD_DEFLATE;
     constexpr AZ::s32 s_compressionLevel = AZ::IO::INestedArchive::LEVEL_NORMAL;
     constexpr CompressionCodec::Codec s_compressionCodec = CompressionCodec::Codec::ZLIB;
@@ -158,16 +158,16 @@ namespace AzToolsFramework
 
             bool success = true;
             AZStd::vector<char> fileBuffer;
-            const AZ::IO::Path workingPath{ dirToArchive };
+            const AZ::IO::FixedMaxPath workingPath{ dirToArchive };
 
             for (const auto& fileName : foundFiles.GetValue())
             {
                 bool thisSuccess = false;
 
-                AZ::IO::PathView relativePath = AZ::IO::PathView{ fileName }.LexicallyRelative(workingPath);
+                AZ::IO::FixedMaxPath relativePath = AZ::IO::FixedMaxPath{ fileName }.LexicallyRelative(workingPath);
+                AZ::IO::FixedMaxPath fullPath = (workingPath / relativePath);
 
-                AZ::IO::Path fullPath = (workingPath / relativePath);
-                if (ArchiveUtils::ReadFile(fullPath, AZ::IO::OpenMode::ModeRead, fileBuffer))
+                if (ArchiveUtils::ReadFile(static_cast<AZ::IO::PathView>(fullPath), AZ::IO::OpenMode::ModeRead, fileBuffer))
                 {
                     int result = archive->UpdateFile(
                         relativePath.Native(), fileBuffer.data(), fileBuffer.size(), s_compressionMethod,
