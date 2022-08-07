@@ -77,20 +77,20 @@ namespace AZ
             return m_descriptor.m_attachmentCount;
         }
 
-        AZStd::array_view<RenderPass::SubpassAttachment> RenderPass::GetSubpassAttachments(const uint32_t subpassIndex, const AttachmentType type) const
+        AZStd::span<const RenderPass::SubpassAttachment> RenderPass::GetSubpassAttachments(const uint32_t subpassIndex, const AttachmentType type) const
         {
             const SubpassDescriptor& descriptor = m_descriptor.m_subpassDescriptors[subpassIndex];
             switch (type)
             {
             case AttachmentType::Color:
-                return AZStd::array_view<SubpassAttachment>(descriptor.m_rendertargetAttachments.begin(), descriptor.m_rendertargetCount);
+                return AZStd::span<const SubpassAttachment>(descriptor.m_rendertargetAttachments.begin(), descriptor.m_rendertargetCount);
             case AttachmentType::DepthStencil:
                 return descriptor.m_depthStencilAttachment.IsValid() ?
-                    AZStd::array_view<SubpassAttachment>(&descriptor.m_depthStencilAttachment, 1) : AZStd::array_view<SubpassAttachment>();
+                    AZStd::span<const SubpassAttachment>(&descriptor.m_depthStencilAttachment, 1) : AZStd::span<const SubpassAttachment>();
             case AttachmentType::InputAttachment:
-                return AZStd::array_view<SubpassAttachment>(descriptor.m_subpassInputAttachments.begin(), descriptor.m_subpassInputCount);
+                return AZStd::span<const SubpassAttachment>(descriptor.m_subpassInputAttachments.begin(), descriptor.m_subpassInputCount);
             case AttachmentType::Resolve:
-                return AZStd::array_view<SubpassAttachment>(descriptor.m_resolveAttachments.begin(), descriptor.m_rendertargetCount);
+                return AZStd::span<const SubpassAttachment>(descriptor.m_resolveAttachments.begin(), descriptor.m_rendertargetCount);
             default:
                 AZ_Assert(false, "Invalid attachment type %d", type);
                 return {};
@@ -110,7 +110,7 @@ namespace AZ
             if (m_nativeRenderPass != VK_NULL_HANDLE)
             {
                 auto& device = static_cast<Device&>(GetDevice());
-                vkDestroyRenderPass(device.GetNativeDevice(), m_nativeRenderPass, nullptr);
+                device.GetContext().DestroyRenderPass(device.GetNativeDevice(), m_nativeRenderPass, nullptr);
                 m_nativeRenderPass = VK_NULL_HANDLE;
             }
             Base::Shutdown();
@@ -141,7 +141,8 @@ namespace AZ
 
             auto& device = static_cast<Device&>(GetDevice());
 
-            const VkResult result = vkCreateRenderPass(device.GetNativeDevice(), &createInfo, nullptr, &m_nativeRenderPass);
+            const VkResult result =
+                device.GetContext().CreateRenderPass(device.GetNativeDevice(), &createInfo, nullptr, &m_nativeRenderPass);
             AssertSuccess(result);
 
             return ConvertResult(result);

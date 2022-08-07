@@ -20,6 +20,7 @@
 #include <AzToolsFramework/Editor/EditorSettingsAPIBus.h>
 #include <AzToolsFramework/Prefab/PrefabLoaderInterface.h>
 #include <AzCore/JSON/document.h>
+#include <AzCore/Console/IConsole.h>
 
 #include <AzQtComponents/Components/Widgets/ToolBar.h>
 
@@ -136,13 +137,6 @@ struct SViewportsSettings
     bool bDrawEntityLabels;
     //! Show Trigger bounds.
     bool bShowTriggerBounds;
-    //! Show Icons in viewport.
-    bool bShowIcons;
-    //! Scale icons with distance, so they aren't a fixed size no matter how far away you are
-    bool bDistanceScaleIcons;
-
-    //! Show Size-based Icons in viewport.
-    bool bShowSizeBasedIcons;
 
     //! Show Helpers in viewport for frozen objects.
     int nShowFrozenHelpers;
@@ -260,6 +254,7 @@ struct SSmartOpenDialogSettings
 //////////////////////////////////////////////////////////////////////////
 /** Various editor settings.
 */
+AZ_CVAR_EXTERNED(int64_t, ed_backgroundSystemTickCap);
 AZ_PUSH_DISABLE_DLL_EXPORT_BASECLASS_WARNING
 struct SANDBOX_API SEditorSettings
     : AzToolsFramework::EditorSettingsAPIBus::Handler
@@ -385,10 +380,6 @@ AZ_POP_DISABLE_DLL_EXPORT_BASECLASS_WARNING
 
     SGUI_Settings gui;
 
-    bool              bApplyConfigSpecInEditor;
-
-    ESystemConfigSpec editorConfigSpec;
-
     //! Terrain Texture Export/Import filename.
     QString terrainTextureExport;
 
@@ -430,8 +421,6 @@ AZ_POP_DISABLE_DLL_EXPORT_BASECLASS_WARNING
 
     bool bSettingsManagerMode;
 
-    bool bAutoSaveTagPoints;
-
     bool bNavigationContinuousUpdate;
     bool bNavigationShowAreas;
     bool bNavigationDebugDisplay;
@@ -458,7 +447,6 @@ private:
     void LoadValue(const char* sSection, const char* sKey, float& value);
     void LoadValue(const char* sSection, const char* sKey, bool& value);
     void LoadValue(const char* sSection, const char* sKey, QString& value);
-    void LoadValue(const char* sSection, const char* sKey, ESystemConfigSpec& value);
 
     void SaveCloudSettings();
 

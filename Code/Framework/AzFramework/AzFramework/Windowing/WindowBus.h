@@ -55,6 +55,10 @@ namespace AzFramework
         //! Set the client area size. This is the size that can be rendered to.
         virtual void ResizeClientArea(WindowSize clientAreaSize) = 0;
 
+        //! Does this platform support window resizing.
+        //! Generally desktop platforms support resizing, mobile platforms don't.
+        virtual bool SupportsClientAreaResize() const = 0;
+
         //! Get the full screen state of the window.
         //! \return True if the window is currently in full screen, false otherwise.
         virtual bool GetFullScreenState() const = 0;
@@ -79,7 +83,7 @@ namespace AzFramework
         virtual uint32_t GetSyncInterval() const = 0;
 
         //! Sets the sync interval which tells the drivers the number of v-blanks to synchronize with
-        //! Returns if the sync interval was succesfully set
+        //! Returns if the sync interval was successfully set
         virtual bool SetSyncInterval(uint32_t newSyncInterval) = 0;
 
         //! Returns the refresh rate of the main display

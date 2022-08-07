@@ -230,7 +230,7 @@ namespace AZ
         EBUS_EVENT_ID(m_id, EntityBus, OnEntityDeactivated, m_id);
         EBUS_EVENT(EntitySystemBus, OnEntityDeactivated, m_id);
 
-        AZ_Assert(m_state == State::Active, "Component should be in Active state to br Deactivated!");
+        AZ_Assert(m_state == State::Active, "Component should be in Active state to be Deactivated!");
         SetState(State::Deactivating);
 
         for (ComponentArrayType::reverse_iterator it = m_components.rbegin(); it != m_components.rend(); ++it)
@@ -649,14 +649,14 @@ namespace AZ
         m_stateEvent.Signal(oldState, m_state);
     }
 
-    void Entity::SetSpawnTicketId(u32 spawnTicketId)
+    void Entity::SetEntitySpawnTicketId(u32 entitySpawnTicketId)
     {
-        m_spawnTicketId = spawnTicketId;
+        m_entitySpawnTicketId = entitySpawnTicketId;
     }
 
-    u32 Entity::GetSpawnTicketId() const
+    u32 Entity::GetEntitySpawnTicketId() const
     {
-        return m_spawnTicketId;
+        return m_entitySpawnTicketId;
     }
 
     void Entity::OnNameChanged() const
@@ -1101,8 +1101,7 @@ namespace AZ
                 return FailureCode(DependencySortResult::DescriptorNotRegistered, "No descriptor registered for Component class '%s'.", component->RTTI_GetTypeName());
             }
 
-            componentInfos.push_back();
-            ComponentInfo& componentInfo = componentInfos.back();
+            ComponentInfo& componentInfo = componentInfos.emplace_back();
             componentInfo.m_component = component;
             componentInfo.m_componentId = component->GetId();
             componentInfo.m_descriptor = componentDescriptor;
@@ -1209,8 +1208,7 @@ namespace AZ
 
                     // put new entry into "linked-list" of components that depend upon this service
                     size_t newEntryIndex = dependentComponentBuffer.size();
-                    dependentComponentBuffer.push_back();
-                    DependentComponentEntry& dependentEntry = dependentComponentBuffer.back();
+                    DependentComponentEntry& dependentEntry = dependentComponentBuffer.emplace_back();
                     dependentEntry.m_dependentComponentInfo = &componentInfo;
 
                     if (serviceInfo.m_firstDependentComponentEntry == InvalidEntry)

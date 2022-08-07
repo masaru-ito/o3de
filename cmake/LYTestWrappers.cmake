@@ -17,7 +17,7 @@ set(LY_GOOGLETEST_EXTRA_PARAMS CACHE STRING "Allows injection of additional opti
 
 find_package(Python REQUIRED MODULE)
 
-ly_set(LY_PYTEST_EXECUTABLE ${LY_PYTHON_CMD} -B -m pytest -v --tb=short --show-capture=log -c ${LY_ROOT_FOLDER}/pytest.ini --build-directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>")
+ly_set(LY_PYTEST_EXECUTABLE ${LY_PYTHON_CMD} -B -m pytest -v --tb=short --show-capture=stdout -c ${LY_ROOT_FOLDER}/pytest.ini --build-directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>")
 ly_set(LY_TEST_GLOBAL_KNOWN_SUITE_NAMES "smoke" "main" "periodic" "benchmark" "sandbox" "awsi")
 ly_set(LY_TEST_GLOBAL_KNOWN_REQUIREMENTS "gpu")
 
@@ -141,7 +141,7 @@ function(ly_add_test)
 
     set(wrapper_file ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/Platform/${PAL_PLATFORM_NAME}/LYTestWrappers_${PAL_PLATFORM_NAME_LOWERCASE}.cmake)
     if(NOT EXISTS ${wrapper_file})
-        ly_get_absolute_pal_filename(wrapper_file ${wrapper_file})
+        o3de_pal_dir(wrapper_file ${wrapper_file} "${O3DE_ENGINE_RESTRICTED_PATH}" "${LY_ROOT_FOLDER}")
     endif()
     include(${wrapper_file})
 
@@ -315,18 +315,22 @@ function(ly_add_pytest)
     # Add the script path to the test target params
     set(LY_TEST_PARAMS "${ly_add_pytest_PATH}")
 
+    # Command to run the test
+    set(test_command ${LY_PYTEST_EXECUTABLE} ${ly_add_pytest_PATH} ${ly_add_pytest_EXTRA_ARGS} --output-path ${pytest_output_directory} --junitxml=${pytest_report_directory} ${custom_marks_args})
+
     ly_add_test(
         NAME ${ly_add_pytest_NAME}
         PARENT_NAME ${ly_add_pytest_NAME}
         TEST_SUITE ${ly_add_pytest_TEST_SUITE}
         LABELS FRAMEWORK_pytest
-        TEST_COMMAND ${LY_PYTEST_EXECUTABLE} ${ly_add_pytest_PATH} ${ly_add_pytest_EXTRA_ARGS} --output-path ${pytest_output_directory} --junitxml=${pytest_report_directory} ${custom_marks_args}
+        TEST_COMMAND ${test_command}
         TEST_LIBRARY pytest
         COMPONENT ${ly_add_pytest_COMPONENT}
         ${ly_add_pytest_UNPARSED_ARGUMENTS}
     )
 
     set_property(GLOBAL APPEND PROPERTY LY_ALL_TESTS_${ly_add_pytest_NAME}_SCRIPT_PATH ${ly_add_pytest_PATH})
+    set_property(GLOBAL APPEND PROPERTY LY_ALL_TESTS_${ly_add_pytest_NAME}_TEST_COMMAND ${test_command})
     set_tests_properties(${LY_ADDED_TEST_NAME} PROPERTIES RUN_SERIAL "${ly_add_pytest_TEST_SERIAL}")
 endfunction()
 

@@ -211,7 +211,11 @@ AZStd::array<{{ Property.attrib['Type'] }}, {{ Property.attrib['Count'] }}> m_{{
 {% elif Property.attrib['Container'] == 'Vector' %}
 AZStd::fixed_vector<{{ Property.attrib['Type'] }}, {{ Property.attrib['Count'] }}> m_{{ LowerFirst(Property.attrib['Name']) }};
 {% else %}
+{%    if Property.attrib['Init'] | length %}
+{{ Property.attrib['Type'] }} m_{{ LowerFirst(Property.attrib['Name']) }} = {{Property.attrib['Init']}};
+{%    else %}
 {{ Property.attrib['Type'] }} m_{{ LowerFirst(Property.attrib['Name']) }};
+{%    endif %}
 {% endif %}
 {% endcall %}
 {% endmacro %}
@@ -241,6 +245,7 @@ AZStd::fixed_vector<{{ Property.attrib['Type'] }}, {{ Property.attrib['Count'] }
 #include <AzCore/EBus/Event.h>
 #include <AzCore/EBus/ScheduledEvent.h>
 #include <AzNetworking/DataStructures/FixedSizeBitsetView.h>
+#include <Multiplayer/IMultiplayerDebug.h>
 #include <Multiplayer/MultiplayerTypes.h>
 #include <Multiplayer/Components/MultiplayerComponent.h>
 #include <Multiplayer/Components/MultiplayerController.h>
@@ -354,6 +359,7 @@ namespace {{ Component.attrib['Namespace'] }}
 {%      endif%}
         Multiplayer::NetComponentId GetNetComponentId() const override;
         bool Serialize(AzNetworking::ISerializer& serializer) override;
+        Multiplayer::MultiplayerAuditingElement GetInputDeltaLog() const override;
         Multiplayer::IMultiplayerComponentInput& operator =(const Multiplayer::IMultiplayerComponentInput& rhs) override;
 
 {% call(Input) AutoComponentMacros.ParseNetworkInputs(Component) %}
@@ -461,7 +467,7 @@ namespace {{ Component.attrib['Namespace'] }}
         {{ AutoComponentMacros.DeclareRpcEventGetters(Component, 'Authority', 'Autonomous')|indent(8) -}}
 
 {% for Service in Component.iter('ComponentRelation') %}
-{%      if (Service.attrib['HasController']|booleanTrue) and (Service.attrib['Constraint'] != 'Incompatible') %}
+{%      if (Service.attrib['Constraint'] != 'Incompatible') and (Service.attrib['HasController']|booleanTrue)  %}
         {{ Service.attrib['Namespace'] }}::{{ Service.attrib['Name'] }}Controller* Get{{ Service.attrib['Name'] }}Controller();
 {%      endif %}
 {% endfor %}
@@ -503,7 +509,7 @@ namespace {{ Component.attrib['Namespace'] }}
         void Activate() override;
         void Deactivate() override;
 {% if ComponentDerived %}
-        virtual void OnInit() = 0;
+        virtual void OnInit() {}
         virtual void OnActivate(Multiplayer::EntityIsMigrating entityIsMigrating) = 0;
         virtual void OnDeactivate(Multiplayer::EntityIsMigrating entityIsMigrating) = 0;
 {% endif %}
@@ -526,6 +532,7 @@ namespace {{ Component.attrib['Namespace'] }}
         void NotifyStateDeltaChanges(Multiplayer::ReplicationRecord& replicationRecord) override;
         bool HasController() const override;
         Multiplayer::MultiplayerController* GetController() override;
+        const Multiplayer::MultiplayerController* GetController() const override;
 
     protected:
         void ConstructController() override;

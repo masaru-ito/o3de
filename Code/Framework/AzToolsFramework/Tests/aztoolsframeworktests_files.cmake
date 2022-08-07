@@ -8,10 +8,17 @@
 
 set(FILES
     Main.cpp
+    ActionManager/ActionManagerFixture.cpp
+    ActionManager/ActionManagerFixture.h
+    ActionManager/ActionManagerTests.cpp
+    ActionManager/HotKeyManagerTests.cpp
+    ActionManager/MenuManagerTests.cpp
+    ActionManager/ToolBarManagerTests.cpp
     ArchiveTests.cpp
     AssetFileInfoListComparison.cpp
     AssetSeedManager.cpp
     AssetSystemMocks.h
+    AzToolsFrameworkTestHelpersTest.cpp
     BoundsTestComponent.cpp
     BoundsTestComponent.h
     ComponentAdapterTests.cpp
@@ -23,6 +30,7 @@ set(FILES
     ComponentModeTests.cpp
     EditorTransformComponentSelectionTests.cpp
     EditorVertexSelectionTests.cpp
+    EditorViewportIconTests.cpp
     Entity/EditorEntityContextComponentTests.cpp
     Entity/EditorEntityHelpersTests.cpp
     Entity/EditorEntitySearchComponentTests.cpp
@@ -63,10 +71,19 @@ set(FILES
     Prefab/Benchmark/PrefabInstantiateBenchmarks.cpp
     Prefab/Benchmark/PrefabLoadBenchmarks.cpp
     Prefab/Benchmark/PrefabUpdateInstancesBenchmarks.cpp
+    Prefab/Benchmark/Propagation/PropagationBenchmarkFixture.cpp
+    Prefab/Benchmark/Propagation/PropagationBenchmarkFixture.h
+    Prefab/Benchmark/Propagation/SingleInstanceMultipleNestedInstancesBenchmarks.cpp
+    Prefab/Benchmark/Propagation/SingleInstanceMultipleNestedInstancesBenchmarks.h
+    Prefab/Benchmark/Propagation/SingleInstanceMultipleEntityBenchmarks.cpp
+    Prefab/Benchmark/Propagation/SingleInstanceMultipleEntityBenchmarks.h
+    Prefab/Benchmark/Propagation/SingleInstanceOverrideBenchmarks.cpp
+    Prefab/Benchmark/Propagation/SingleInstanceOverrideBenchmarks.h
     Prefab/Benchmark/SpawnableCreateBenchmarks.cpp
     Prefab/Benchmark/Spawnable/SpawnableBenchmarkFixture.h
     Prefab/Benchmark/Spawnable/SpawnableBenchmarkFixture.cpp
     Prefab/Benchmark/Spawnable/SpawnAllEntitiesBenchmarks.cpp
+    Prefab/Instance/InstanceDeserializationTests.cpp
     Prefab/PrefabFocus/PrefabFocusTests.cpp
     Prefab/MockPrefabFileIOActionValidator.cpp
     Prefab/MockPrefabFileIOActionValidator.h
@@ -96,6 +113,9 @@ set(FILES
     Prefab/PrefabUpdateTemplateTests.cpp
     Prefab/PrefabUpdateWithPatchesTests.cpp
     Prefab/Spawnable/SpawnableMetaDataTests.cpp
+    Prefab/Spawnable/SpawnableTestFixture.h
+    Prefab/Spawnable/SpawnableTestFixture.cpp
+    Prefab/Spawnable/SpawnableTicketTests.cpp
     Prefab/SpawnableCreateTests.cpp
     Prefab/SpawnableRemoveEditorInfoTestFixture.cpp
     Prefab/SpawnableRemoveEditorInfoTestFixture.h
@@ -113,6 +133,7 @@ set(FILES
     PropertyTreeEditorTests.cpp
     PythonBindingTests.cpp
     QtWidgetLimitsTests.cpp
+    Script/LuaEditorSystemComponentTests.cpp
     Script/ScriptComponentTests.cpp
     Script/ScriptEntityTests.cpp
     Slice.cpp
@@ -143,5 +164,6 @@ set(FILES
     Viewport/ViewportUiManagerTests.cpp
     Viewport/ViewportUiWidgetManagerTests.cpp
     Viewport/ViewportInteractionTests.cpp
+    Viewport/ViewBookmarkTests.cpp
     Visibility/EditorVisibilityTests.cpp
 )

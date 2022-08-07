@@ -17,7 +17,7 @@
 #include <Atom/RHI.Reflect/Limits.h>
 #include <Atom/RHI.Reflect/ScopeId.h>
 #include <Atom/RHI.Reflect/Interval.h>
-#include <AtomCore/std/containers/array_view.h>
+#include <AzCore/std/containers/span.h>
 #include <AzCore/std/containers/list.h>
 #include <AzCore/std/containers/unordered_set.h>
 #include <AzCore/std/containers/vector.h>
@@ -103,7 +103,7 @@ namespace AZ
             bool IsInsideRenderPass() const;
             const Framebuffer* GetActiveFramebuffer() const;
             const RenderPass* GetActiveRenderpass() const;
-            void ExecuteSecondaryCommandLists(const AZStd::array_view<RHI::Ptr<CommandList>>& commands);
+            void ExecuteSecondaryCommandLists(const AZStd::span<const RHI::Ptr<CommandList>>& commands);
 
             uint32_t GetQueueFamilyIndex() const;
 
@@ -163,6 +163,7 @@ namespace AZ
 
             template <class Item>
             bool CommitShaderResource(const Item& item);
+            void CommitShaderResourcePushConstants(VkPipelineLayout pipelineLayout, uint8_t rootConstantSize, const uint8_t* rootConstants);
             void CommitDescriptorSets(RHI::PipelineStateType type);
             ShaderResourceBindings& GetShaderResourceBindingsByPipelineType(RHI::PipelineStateType type);
             VkPipelineBindPoint GetPipelineBindPoint(const PipelineState& pipelineState) const;
@@ -183,8 +184,17 @@ namespace AZ
         {
             const PipelineState* pipelineState = static_cast<const PipelineState*>(item.m_pipelineState);
             AZ_Assert(pipelineState, "Pipeline state is null.");
+            if(!pipelineState)
+            {
+                return false;
+            }
+            
             AZ_Assert(pipelineState->GetPipelineLayout(), "Pipeline layout is null.");
-
+            if(!pipelineState->GetPipelineLayout())
+            {
+                return false;
+            }
+            
             // Set the pipeline state first
             BindPipeline(pipelineState);
             const RHI::PipelineStateType pipelineType = pipelineState->GetType();
@@ -210,13 +220,7 @@ namespace AZ
             auto pipelineLayout = pipelineState->GetPipelineLayout();
             if (item.m_rootConstantSize && pipelineLayout->GetPushContantsSize() > 0)
             {
-                vkCmdPushConstants(
-                    m_nativeCommandBuffer,
-                    pipelineLayout->GetNativePipelineLayout(),
-                    VK_SHADER_STAGE_ALL,
-                    0,
-                    item.m_rootConstantSize,
-                    item.m_rootConstants);
+                CommitShaderResourcePushConstants(pipelineLayout->GetNativePipelineLayout(), item.m_rootConstantSize, item.m_rootConstants);
             }
 
             m_state.m_bindingsByPipe[static_cast<uint32_t>(pipelineType)].m_dirtyShaderResourceGroupFlags.reset();

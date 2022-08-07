@@ -21,7 +21,6 @@
 #include <AzToolsFramework/AssetBrowser/AssetEntryChangeset.h>
 #include <AzToolsFramework/AssetBrowser/Entries/AssetBrowserEntryCache.h>
 #include <AzToolsFramework/Thumbnails/ThumbnailerBus.h>
-#include <AzToolsFramework/Thumbnails/ThumbnailContext.h>
 #include <AzToolsFramework/AssetBrowser/Thumbnails/FolderThumbnail.h>
 #include <AzToolsFramework/AssetBrowser/Thumbnails/SourceThumbnail.h>
 #include <AzToolsFramework/AssetBrowser/Thumbnails/ProductThumbnail.h>
@@ -69,11 +68,13 @@ namespace AzToolsFramework
             AZ::TickBus::Handler::BusConnect();
             AssetSystemBus::Handler::BusConnect();
             AssetBrowserInteractionNotificationBus::Handler::BusConnect();
+            AssetBrowserFileCreationNotificationBus::Handler::BusConnect(
+                AssetBrowserFileCreationNotifications::FileCreationNotificationBusId);
 
             using namespace Thumbnailer;
-            ThumbnailerRequestBus::Broadcast(&ThumbnailerRequests::RegisterThumbnailProvider, MAKE_TCACHE(FolderThumbnailCache), ThumbnailContext::DefaultContext);
-            ThumbnailerRequestBus::Broadcast(&ThumbnailerRequests::RegisterThumbnailProvider, MAKE_TCACHE(SourceThumbnailCache), ThumbnailContext::DefaultContext);
-            ThumbnailerRequestBus::Broadcast(&ThumbnailerRequests::RegisterThumbnailProvider, MAKE_TCACHE(ProductThumbnailCache), ThumbnailContext::DefaultContext);
+            ThumbnailerRequestBus::Broadcast(&ThumbnailerRequests::RegisterThumbnailProvider, MAKE_TCACHE(FolderThumbnailCache));
+            ThumbnailerRequestBus::Broadcast(&ThumbnailerRequests::RegisterThumbnailProvider, MAKE_TCACHE(SourceThumbnailCache));
+            ThumbnailerRequestBus::Broadcast(&ThumbnailerRequests::RegisterThumbnailProvider, MAKE_TCACHE(ProductThumbnailCache));
 
             AzFramework::SocketConnection* socketConn = AzFramework::SocketConnection::GetInstance();
             AZ_Assert(socketConn, "AzToolsFramework::AssetBrowser::AssetBrowserComponent requires a valid socket conection!");
@@ -96,6 +97,8 @@ namespace AzToolsFramework
                 m_thread.join(); // wait for the thread to finish
                 m_thread = AZStd::thread(); // destroy
             }
+            AssetBrowserFileCreationNotificationBus::Handler::BusDisconnect(
+                AssetBrowserFileCreationNotifications::FileCreationNotificationBusId);
             AssetBrowserInteractionNotificationBus::Handler::BusDisconnect();
             AssetDatabaseLocationNotificationBus::Handler::BusDisconnect();
             AssetBrowserComponentRequestBus::Handler::BusDisconnect();
@@ -268,6 +271,15 @@ namespace AzToolsFramework
             return SourceFileDetails();
         }
 
+        void AssetBrowserComponent::HandleAssetCreatedInEditor(const AZStd::string_view assetPath, const AZ::Crc32& creatorBusId)
+        {
+            if (assetPath.empty())
+            {
+                return;
+            }
+
+            m_assetBrowserModel->HandleAssetCreatedInEditor(assetPath, creatorBusId);
+        }
 
         void AssetBrowserComponent::AddFile(const AZ::s64& fileId) 
         {

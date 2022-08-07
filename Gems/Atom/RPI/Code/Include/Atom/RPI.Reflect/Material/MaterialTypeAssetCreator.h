@@ -8,9 +8,8 @@
 #pragma once
 
 #include <Atom/RPI.Reflect/AssetCreator.h>
-#include <Atom/RPI.Reflect/Material/MaterialAssetCreatorCommon.h>
 #include <Atom/RPI.Reflect/Material/MaterialTypeAsset.h>
-#include <AtomCore/std/containers/array_view.h>
+#include <AzCore/std/containers/span.h>
 
 namespace AZ
 {
@@ -27,7 +26,6 @@ namespace AZ
         //! which provides the MaterialTypeAsset and default property values.
         class MaterialTypeAssetCreator
             : public AssetCreator<MaterialTypeAsset>
-            , public MaterialAssetCreatorCommon
         {
         public:
             //! Begin creating a MaterialTypeAsset
@@ -35,7 +33,8 @@ namespace AZ
 
             //! Adds a shader to the built-in shader collection, which will be run for this material.
             //! shaderTag must be unique within the material type's list of shaders.
-            void AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const ShaderVariantId& shaderVaraintId = ShaderVariantId{}, const AZ::Name& shaderTag = Uuid::CreateRandom().ToString<AZ::Name>());
+            void AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const ShaderVariantId& shaderVariantId = ShaderVariantId{});
+            void AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const ShaderVariantId& shaderVariantId, const AZ::Name& shaderTag);
             void AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const AZ::Name& shaderTag);
 
             //! Sets the version of the MaterialTypeAsset
@@ -71,6 +70,14 @@ namespace AZ
 
             //! Finishes creating a material property.
             void EndMaterialProperty();
+            
+            void SetPropertyValue(const Name& name, const Data::Asset<ImageAsset>& imageAsset);
+            void SetPropertyValue(const Name& name, const Data::Asset<StreamingImageAsset>& imageAsset);
+            void SetPropertyValue(const Name& name, const Data::Asset<AttachmentImageAsset>& imageAsset);
+
+            //! Sets a property value using data in AZStd::variant-based MaterialPropertyValue. The contained data must match
+            //! the data type of the property. For type Image, the value must be a Data::Asset<ImageAsset>.
+            void SetPropertyValue(const Name& name, const MaterialPropertyValue& value);
 
             //! Adds a MaterialFunctor.
             //! Material functors provide custom logic and calculations to configure shaders, render states, and more.See MaterialFunctor.h for details.
@@ -101,7 +108,9 @@ namespace AZ
         private:
 
             void AddMaterialProperty(MaterialPropertyDescriptor&& materialProperty);
-
+            
+            bool PropertyCheck(TypeId typeId, const Name& name);
+                
             //! The material type holds references to shader assets that contain SRGs that are supposed to be the same across all passes in the material.
             //! This function searches for an SRG given a @bindingSlot. If a valid one is found it makes sure it is the same across all shaders
             //! and records in srgShaderIndexToUpdate the index of the ShaderAsset in the ShaderCollection where it was found.

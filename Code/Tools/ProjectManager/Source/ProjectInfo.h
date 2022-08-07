@@ -37,7 +37,7 @@ namespace O3DE::ProjectManager
         bool operator!=(const ProjectInfo& rhs) const;
 
         bool IsValid() const;
-        const QString& GetProjectDisplayName() const; 
+        const QString& GetProjectDisplayName() const;
 
         // from o3de_manifest.json and o3de_projects.json
         QString m_path;
@@ -45,6 +45,8 @@ namespace O3DE::ProjectManager
         // From project.json
         QString m_projectName;
         QString m_displayName;
+        QString m_engineName;
+        QString m_enginePath;
         QString m_id;
         QString m_origin;
         QString m_summary;

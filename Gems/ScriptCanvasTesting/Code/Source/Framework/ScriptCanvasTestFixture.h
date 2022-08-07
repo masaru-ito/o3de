@@ -20,9 +20,10 @@
 #include <AzFramework/IO/LocalFileIO.h>
 #include <AzTest/AzTest.h>
 
+#include <TestAutoGenFunctionRegistry.generated.h>
+#include <TestAutoGenNodeableRegistry.generated.h>
 #include <Nodes/BehaviorContextObjectTestNode.h>
-#include <Nodes/Nodeables/SharedDataSlotExample.h>
-#include <Nodes/Nodeables/ValuePointerReferenceExample.h>
+#include <Nodes/TestAutoGenFunctions.h>
 #include <ScriptCanvas/Core/Graph.h>
 #include <ScriptCanvas/Core/SlotConfigurationDefaults.h>
 #include <ScriptCanvas/ScriptCanvasGem.h>
@@ -36,6 +37,9 @@
 
 #define SC_EXPECT_DOUBLE_EQ(candidate, reference) EXPECT_NEAR(candidate, reference, 0.001)
 #define SC_EXPECT_FLOAT_EQ(candidate, reference) EXPECT_NEAR(candidate, reference, 0.001f)
+
+REGISTER_SCRIPTCANVAS_AUTOGEN_FUNCTION(ScriptCanvasTestingEditorStatic);
+REGISTER_SCRIPTCANVAS_AUTOGEN_NODEABLE(ScriptCanvasTestingEditorStatic);
 
 namespace ScriptCanvasTests
 {
@@ -89,6 +93,16 @@ namespace ScriptCanvasTests
             AZ_Assert(fileIO, "SC unit tests require filehandling");
 
             s_setupSucceeded = fileIO->GetAlias("@engroot@") != nullptr;
+            // Set the @gemroot:<gem-name> alias for active gems
+            auto settingsRegistry = AZ::SettingsRegistry::Get();
+            if (settingsRegistry)
+            {
+                AZ::Test::AddActiveGem("ScriptCanvasTesting", *settingsRegistry, fileIO);
+                AZ::Test::AddActiveGem("GraphCanvas", *settingsRegistry, fileIO);
+                AZ::Test::AddActiveGem("ScriptCanvas", *settingsRegistry, fileIO);
+                AZ::Test::AddActiveGem("ScriptEvents", *settingsRegistry, fileIO);
+                AZ::Test::AddActiveGem("ExpressionEvaluation", *settingsRegistry, fileIO);
+            }
             
             AZ::TickBus::AllowFunctionQueuing(true);
 
@@ -100,19 +114,6 @@ namespace ScriptCanvasTests
 
             ScriptCanvasTestingNodes::BehaviorContextObjectTest::Reflect(m_serializeContext);
             ScriptCanvasTestingNodes::BehaviorContextObjectTest::Reflect(m_behaviorContext);
-
-            ::Nodes::InputMethodSharedDataSlotExampleNode::Reflect(m_serializeContext);
-            ::Nodes::InputMethodSharedDataSlotExampleNode::Reflect(m_behaviorContext);
-            ::Nodes::BranchMethodSharedDataSlotExampleNode::Reflect(m_serializeContext);
-            ::Nodes::BranchMethodSharedDataSlotExampleNode::Reflect(m_behaviorContext);
-            ::Nodes::ReturnTypeExampleNode::Reflect(m_serializeContext);
-            ::Nodes::ReturnTypeExampleNode::Reflect(m_behaviorContext);
-            ::Nodes::InputTypeExampleNode::Reflect(m_serializeContext);
-            ::Nodes::InputTypeExampleNode::Reflect(m_behaviorContext);
-            ::Nodes::BranchInputTypeExampleNode::Reflect(m_serializeContext);
-            ::Nodes::BranchInputTypeExampleNode::Reflect(m_behaviorContext);
-            ::Nodes::PropertyExampleNode::Reflect(m_serializeContext);
-            ::Nodes::PropertyExampleNode::Reflect(m_behaviorContext);
 
             TestNodeableObject::Reflect(m_serializeContext);
             TestNodeableObject::Reflect(m_behaviorContext);

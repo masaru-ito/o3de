@@ -12,7 +12,6 @@
 #include <AzFramework/Asset/AssetSystemBus.h>
 
 #include <AzToolsFramework/API/EditorAssetSystemAPI.h>
-#include <AzToolsFramework/Debug/TraceContext.h>
 #include <AzToolsFramework/AssetCatalog/PlatformAddressedAssetCatalog.h>
 
 #include <AzCore/Asset/AssetManager.h>
@@ -38,7 +37,6 @@
 
 #include "ShaderPlatformInterfaceRequest.h"
 #include "ShaderBuilder_Traits_Platform.h"
-#include "AtomShaderConfig.h"
 
 #include "SrgLayoutUtility.h"
 
@@ -536,7 +534,7 @@ namespace AZ
 
             RHI::Ptr<RHI::PipelineLayoutDescriptor> BuildPipelineLayoutDescriptorForApi(
                 [[maybe_unused]] const char* builderName, const RPI::ShaderResourceGroupLayoutList& srgLayoutList, const MapOfStringToStageType& shaderEntryPoints,
-                const RHI::ShaderCompilerArguments& shaderCompilerArguments, const RootConstantData& rootConstantData,
+                const RHI::ShaderBuildArguments& shaderBuildArguments, const RootConstantData& rootConstantData,
                 RHI::ShaderPlatformInterface* shaderPlatformInterface, BindingDependencies& bindingDependencies /*inout*/)
             {
                 PruneNonEntryFunctions(bindingDependencies, shaderEntryPoints);
@@ -625,7 +623,7 @@ namespace AZ
 
                 // Build platform-specific PipelineLayoutDescriptor data, and finalize
                 if (!shaderPlatformInterface->BuildPipelineLayoutDescriptor(
-                        pipelineLayoutDescriptor, srgInfos, rootConstantInfo, shaderCompilerArguments))
+                        pipelineLayoutDescriptor, srgInfos, rootConstantInfo, shaderBuildArguments))
                 {
                     AZ_Error(builderName, false, "Failed to build pipeline layout descriptor");
                     return nullptr;
@@ -682,8 +680,7 @@ namespace AZ
                         continue;
                     }
 
-                    contract.m_streamChannels.push_back();
-                    contract.m_streamChannels.back().m_semantic = streamChannelSemantic;
+                    contract.m_streamChannels.emplace_back().m_semantic = streamChannelSemantic;
 
                     if (member.m_variable.m_typeModifier == MatrixMajor::ColumnMajor)
                     {
@@ -765,9 +762,8 @@ namespace AZ
 
                     if (semantic.m_name.GetStringView() == "SV_Target")
                     {
-                        contract.m_requiredColorAttachments.push_back();
                         // Render targets only support 1-D vector types and those are always column-major (per DXC)
-                        contract.m_requiredColorAttachments.back().m_componentCount = member.m_variable.m_cols;
+                        contract.m_requiredColorAttachments.emplace_back().m_componentCount = member.m_variable.m_cols;
                     }
                     else if (
                         semantic.m_name.GetStringView() == "SV_Depth" || semantic.m_name.GetStringView() == "SV_DepthGreaterEqual" ||
@@ -884,6 +880,19 @@ namespace AZ
 
                 auto listOfFilePaths = ParseStringAndGetIncludedFiles(hayStack);
                 return AZ::Success(AZStd::move(listOfFilePaths));
+            }
+
+            AZStd::string GetPlatformNameFromPlatformInfo(const AssetBuilderSDK::PlatformInfo& platformInfo)
+            {
+                auto platformId = AZ::PlatformDefaults::PlatformHelper::GetPlatformIdFromName(platformInfo.m_identifier);
+                switch (platformId)
+                {
+                case AZ::PlatformDefaults::PlatformId::PC :
+                case AZ::PlatformDefaults::PlatformId::SERVER : // Fallthrough. "pc" and "server" are both treated as "Windows".
+                    return { "Windows" };
+                default:
+                    return AZ::PlatformDefaults::PlatformIdToPalFolder(platformId);
+                }
             }
 
         }  // namespace ShaderBuilderUtility

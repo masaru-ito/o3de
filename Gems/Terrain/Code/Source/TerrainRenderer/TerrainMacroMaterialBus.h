@@ -18,8 +18,10 @@ namespace Terrain
 {
     struct MacroMaterialData final
     {
-        AZ_RTTI(MacroMaterialData, "{DC68E20A-3251-4E4E-8BC7-F6A2521FEF46}");
-                 
+        AZ_TYPE_INFO(MacroMaterialData, "{DC68E20A-3251-4E4E-8BC7-F6A2521FEF46}");
+
+        static void Reflect(AZ::ReflectContext* context);
+
         AZ::EntityId m_entityId;
         AZ::Aabb m_bounds = AZ::Aabb::CreateNull();
 
@@ -28,6 +30,7 @@ namespace Terrain
         bool m_normalFlipX{ false };
         bool m_normalFlipY{ false };
         float m_normalFactor{ 0.0f };
+        int32_t m_priority{ 0 };
     };
 
     /**

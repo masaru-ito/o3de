@@ -125,6 +125,7 @@ namespace ScriptCanvas
                 ->Field("executionMode", &Graph::m_executionMode)
                 ->Field("m_assetType", &Graph::m_assetType)
                 ->Field("versionData", &Graph::m_versionData)
+                ->Field("isScriptEventExtension", &Graph::m_isScriptEventExtension)
                 ;
         }
     }
@@ -171,6 +172,18 @@ namespace ScriptCanvas
     const VersionData& Graph::GetVersion() const
     {
         return m_versionData;
+    }
+
+    bool Graph::HasDeprecatedNode() const
+    {
+        for (auto& nodeRef : m_graphData.m_nodes)
+        {
+            if (auto node = FindNode(nodeRef->GetId()); node->IsDeprecated())
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     void Graph::Activate()
@@ -248,12 +261,12 @@ namespace ScriptCanvas
             elementEntity->Init();
         }
 
-        if (auto* node = AZ::EntityUtils::FindFirstDerivedComponent<Node>(elementEntity))
+        if (AZ::EntityUtils::FindFirstDerivedComponent<Node>(elementEntity))
         {
             return AddNode(elementEntity->GetId());
         }
 
-        if (auto* connection = AZ::EntityUtils::FindFirstDerivedComponent<Connection>(elementEntity))
+        if (AZ::EntityUtils::FindFirstDerivedComponent<Connection>(elementEntity))
         {
             return AddConnection(elementEntity->GetId());
         }
@@ -1206,5 +1219,30 @@ namespace ScriptCanvas
         // Will suppress warnings based on the slotId being disconnected.
         scriptCanvasNode.RemoveConnectionsForSlot(slotId, deletedSlot);
         scriptCanvasNode.SignalSlotRemoved(slotId);
+    }
+
+    void Graph::MarkOwnership(ScriptCanvas::ScriptCanvasData& owner)
+    {
+        m_owner = &owner;
+    }
+
+    ScriptCanvas::DataPtr Graph::GetOwnership() const
+    {
+        return const_cast<Graph*>(this)->m_owner;
+    }
+
+    void Graph::ClearScriptEventExtension()
+    {
+        m_isScriptEventExtension = false;
+    }
+
+    bool Graph::IsScriptEventExtension() const
+    {
+        return m_isScriptEventExtension;
+    }
+
+    void Graph::MarkScriptEventExtension()
+    {
+        m_isScriptEventExtension = true;
     }
 }

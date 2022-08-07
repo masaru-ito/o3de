@@ -23,6 +23,7 @@ namespace SandboxEditor
     constexpr AZStd::string_view AngleSizeSetting = "/Amazon/Preferences/Editor/AngleSize";
     constexpr AZStd::string_view ShowGridSetting = "/Amazon/Preferences/Editor/ShowGrid";
     constexpr AZStd::string_view StickySelectSetting = "/Amazon/Preferences/Editor/StickySelect";
+    constexpr AZStd::string_view ManipulatorMouseWrapSetting = "/Amazon/Preferences/Editor/Manipulator/ManipulatorMouseWrapSetting";
     constexpr AZStd::string_view ManipulatorLineBoundWidthSetting = "/Amazon/Preferences/Editor/Manipulator/LineBoundWidth";
     constexpr AZStd::string_view ManipulatorCircleBoundWidthSetting = "/Amazon/Preferences/Editor/Manipulator/CircleBoundWidth";
     constexpr AZStd::string_view CameraTranslateSpeedSetting = "/Amazon/Preferences/Editor/Camera/TranslateSpeed";
@@ -57,6 +58,8 @@ namespace SandboxEditor
     constexpr AZStd::string_view CameraDefaultStartingPositionX = "/Amazon/Preferences/Editor/Camera/DefaultStartingPosition/x";
     constexpr AZStd::string_view CameraDefaultStartingPositionY = "/Amazon/Preferences/Editor/Camera/DefaultStartingPosition/y";
     constexpr AZStd::string_view CameraDefaultStartingPositionZ = "/Amazon/Preferences/Editor/Camera/DefaultStartingPosition/z";
+    constexpr AZStd::string_view CameraDefaultStartingPitch = "/Amazon/Preferences/Editor/Camera/DefaultStartingPitch";
+    constexpr AZStd::string_view CameraDefaultStartingYaw = "/Amazon/Preferences/Editor/Camera/DefaultStartingYaw";
 
     struct EditorViewportSettingsCallbacksImpl : public EditorViewportSettingsCallbacks
     {
@@ -66,15 +69,31 @@ namespace SandboxEditor
             {
                 using AZ::SettingsRegistryMergeUtils::IsPathAncestorDescendantOrEqual;
 
-                m_notifyEventHandler = registry->RegisterNotifier(
+                m_angleSnappingNotifyEventHandler = registry->RegisterNotifier(
+                    [this](const AZStd::string_view path, [[maybe_unused]] const AZ::SettingsRegistryInterface::Type type)
+                    {
+                        if (IsPathAncestorDescendantOrEqual(AngleSnappingSetting, path))
+                        {
+                            m_angleSnappingChanged.Signal(AngleSnappingEnabled());
+                        }
+                    }
+                );
+
+                m_gridSnappingNotifyEventHandler = registry->RegisterNotifier(
                     [this](const AZStd::string_view path, [[maybe_unused]] const AZ::SettingsRegistryInterface::Type type)
                     {
                         if (IsPathAncestorDescendantOrEqual(GridSnappingSetting, path))
                         {
                             m_gridSnappingChanged.Signal(GridSnappingEnabled());
                         }
-                    });
+                    }
+                );
             }
+        }
+
+        void SetAngleSnappingChangedEvent(AngleSnappingChangedEvent::Handler& handler) override
+        {
+            handler.Connect(m_angleSnappingChanged);
         }
 
         void SetGridSnappingChangedEvent(GridSnappingChangedEvent::Handler& handler) override
@@ -82,8 +101,10 @@ namespace SandboxEditor
             handler.Connect(m_gridSnappingChanged);
         }
 
+        GridSnappingChangedEvent m_angleSnappingChanged;
         GridSnappingChangedEvent m_gridSnappingChanged;
-        AZ::SettingsRegistryInterface::NotifyEventHandler m_notifyEventHandler;
+        AZ::SettingsRegistryInterface::NotifyEventHandler m_angleSnappingNotifyEventHandler;
+        AZ::SettingsRegistryInterface::NotifyEventHandler m_gridSnappingNotifyEventHandler;
     };
 
     AZStd::unique_ptr<EditorViewportSettingsCallbacks> CreateEditorViewportSettingsCallbacks()
@@ -99,11 +120,24 @@ namespace SandboxEditor
             aznumeric_cast<float>(AzToolsFramework::GetRegistry(CameraDefaultStartingPositionZ, 4.0)));
     }
 
-    void SetCameraDefaultEditorPosition(const AZ::Vector3& defaultCameraPosition)
+    void SetCameraDefaultEditorPosition(const AZ::Vector3& position)
     {
-        AzToolsFramework::SetRegistry(CameraDefaultStartingPositionX, defaultCameraPosition.GetX());
-        AzToolsFramework::SetRegistry(CameraDefaultStartingPositionY, defaultCameraPosition.GetY());
-        AzToolsFramework::SetRegistry(CameraDefaultStartingPositionZ, defaultCameraPosition.GetZ());
+        AzToolsFramework::SetRegistry(CameraDefaultStartingPositionX, position.GetX());
+        AzToolsFramework::SetRegistry(CameraDefaultStartingPositionY, position.GetY());
+        AzToolsFramework::SetRegistry(CameraDefaultStartingPositionZ, position.GetZ());
+    }
+
+    AZ::Vector2 CameraDefaultEditorOrientation()
+    {
+        return AZ::Vector2(
+            aznumeric_cast<float>(AzToolsFramework::GetRegistry(CameraDefaultStartingPitch, 0.0)),
+            aznumeric_cast<float>(AzToolsFramework::GetRegistry(CameraDefaultStartingYaw, 0.0)));
+    }
+
+    void SetCameraDefaultEditorOrientation(const AZ::Vector2& pitchYaw)
+    {
+        AzToolsFramework::SetRegistry(CameraDefaultStartingPitch, pitchYaw.GetX());
+        AzToolsFramework::SetRegistry(CameraDefaultStartingYaw, pitchYaw.GetY());
     }
 
     AZ::u64 MaxItemsShownInAssetBrowserSearch()
@@ -174,6 +208,16 @@ namespace SandboxEditor
     void SetStickySelectEnabled(const bool enabled)
     {
         AzToolsFramework::SetRegistry(StickySelectSetting, enabled);
+    }
+
+    bool ManipulatorMouseWrap()
+    {
+        return AzToolsFramework::GetRegistry(ManipulatorMouseWrapSetting, false);
+    }
+
+    void SetManipulatorMouseWrap(bool enabled)
+    {
+        AzToolsFramework::SetRegistry(ManipulatorMouseWrapSetting, enabled);
     }
 
     float ManipulatorLineBoundWidth()

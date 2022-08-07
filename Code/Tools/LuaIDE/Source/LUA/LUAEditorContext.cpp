@@ -21,12 +21,13 @@
 #include <AzCore/Settings/SettingsRegistryMergeUtils.h>
 #include <AzCore/std/string/conversions.h>
 #include <AzCore/std/string/regex.h>
+#include <AzCore/StringFunc/StringFunc.h>
 
 #include <AzFramework/Asset/AssetSystemBus.h>
 #include <AzFramework/Asset/AssetSystemComponent.h>
 #include <AzFramework/Asset/AssetCatalogBus.h>
-#include <AzFramework/StringFunc/StringFunc.h>
 #include <AzFramework/Asset/AssetProcessorMessages.h>
+#include <AzFramework/Script/ScriptRemoteDebuggingConstants.h>
 
 #include <AzToolsFramework/API/EditorAssetSystemAPI.h>
 #include <AzToolsFramework/UI/UICore/SaveChangesDialog.hxx>
@@ -123,6 +124,26 @@ namespace LUAEditor
     {
         m_fileIO = AZ::IO::FileIOBase::GetInstance();
         AZ_Assert(m_fileIO, "FileIO system is not present, make sure a FileIO instance is set by the application.");
+
+        auto* remoteToolsInterface = AzFramework::RemoteToolsInterface::Get();
+        if (remoteToolsInterface)
+        {
+            m_connectedEventHandler = AzFramework::RemoteToolsEndpointConnectedEvent::Handler(
+                [this](bool value)
+                {
+                    this->DesiredTargetConnected(value);
+                });
+            remoteToolsInterface->RegisterRemoteToolsEndpointConnectedHandler(
+                AzFramework::LuaToolsKey, m_connectedEventHandler);
+
+            m_changedEventHandler = AzFramework::RemoteToolsEndpointChangedEvent::Handler(
+                [this](AZ::u32 oldVal, AZ::u32 newVal)
+                {
+                    this->DesiredTargetChanged(oldVal, newVal);
+                });
+            remoteToolsInterface->RegisterRemoteToolsEndpointChangedHandler(
+                AzFramework::LuaToolsKey, m_changedEventHandler);
+        }
     }
 
     void Context::Activate()
@@ -135,7 +156,6 @@ namespace LUAEditor
         Context_DebuggerManagement::Handler::BusConnect();
         LUABreakpointRequestMessages::Handler::BusConnect();
         LUAStackRequestMessages::Handler::BusConnect();
-        AzFramework::TargetManagerClient::Bus::Handler::BusConnect();
         LUAWatchesRequestMessages::Handler::BusConnect();
         LUATargetContextRequestMessages::Handler::BusConnect();
         HighlightedWords::Handler::BusConnect();
@@ -191,7 +211,6 @@ namespace LUAEditor
         Context_DebuggerManagement::Handler::BusDisconnect();
         LUAStackRequestMessages::Handler::BusDisconnect();
         LUABreakpointRequestMessages::Handler::BusDisconnect();
-        AzFramework::TargetManagerClient::Bus::Handler::BusDisconnect();
         HighlightedWords::Handler::BusDisconnect();
         AzFramework::AssetSystemInfoBus::Handler::BusDisconnect();
 
@@ -244,7 +263,7 @@ namespace LUAEditor
         }
 
         AZStd::vector<AZStd::string> files;
-        AzFramework::StringFunc::Tokenize(parameters.c_str(), files, ";");
+        AZ::StringFunc::Tokenize(parameters.c_str(), files, ";");
         if (!files.empty())
         {
             for (const auto& file : files)
@@ -509,14 +528,15 @@ namespace LUAEditor
         }
     }
 
-    void Context::DesiredTargetChanged(AZ::u32 newTargetID, AZ::u32 oldTargetID)
+    void Context::DesiredTargetChanged([[maybe_unused]] AZ::u32 newTargetID, AZ::u32 oldTargetID)
     {
-        (void)oldTargetID;
-        (void)newTargetID;
-
         AZ_TracePrintf(LUAEditorDebugName, "Context::RemoteTargetChanged()\n");
 
-        RequestDetachDebugger();
+        // If there's no prior target, there's nothing to detach
+        if (oldTargetID != 0)
+        {
+            RequestDetachDebugger();
+        }
     }
 
     //////////////////////////////////////////////////////////////////////////
@@ -669,9 +689,12 @@ namespace LUAEditor
             return;
         }
 
-        const AzFramework::CommandLine* commandLine = nullptr;
+        const AZ::CommandLine* commandLine = nullptr;
 
-        EBUS_EVENT_RESULT(commandLine, LegacyFramework::FrameworkApplicationMessages::Bus, GetCommandLineParser);
+        AZ::ComponentApplicationBus::Broadcast([&commandLine](AZ::ComponentApplicationRequests* requests)
+            {
+                commandLine = requests->GetAzCommandLine();
+            });
 
         bool forceShow = false;
         bool forceHide = false;
@@ -850,7 +873,7 @@ namespace LUAEditor
         DocumentInfo& info = infoEntry.first->second;
         info.m_assetId = normalizedAssetId;
         info.m_assetName = assetId;
-        AzFramework::StringFunc::Path::GetFullFileName(assetId.c_str(), info.m_displayName);
+        AZ::StringFunc::Path::GetFullFileName(assetId.c_str(), info.m_displayName);
         info.m_bSourceControl_Ready = true;
         info.m_bSourceControl_CanWrite = true;
         info.m_bUntitledDocument = false;
@@ -945,7 +968,7 @@ namespace LUAEditor
             // do not allow SaveAs onto an existing asset, even if it could be checked out and modified "safely."
             // end user must check out and modify contents directly if they want this
 
-            if (AzFramework::StringFunc::Find(newAssetName.c_str(), ".lua") == AZStd::string::npos)
+            if (AZ::StringFunc::Find(newAssetName.c_str(), ".lua") == AZStd::string::npos)
             {
                 newAssetName += ".lua";
             }
@@ -961,7 +984,7 @@ namespace LUAEditor
 
             trySaveAs = false;
             docInfoIter->second.m_bUntitledDocument = false;
-            AzFramework::StringFunc::Path::GetFullFileName(newAssetName.c_str(), docInfoIter->second.m_displayName);
+            AZ::StringFunc::Path::GetFullFileName(newAssetName.c_str(), docInfoIter->second.m_displayName);
 
             // when you 'save as' you can write to it, even if it started out not that way.
             docInfoIter->second.m_bSourceControl_Ready = true;
@@ -1489,7 +1512,7 @@ namespace LUAEditor
 
         DocumentInfo info;
         info.m_assetName = assetIdLower;
-        AzFramework::StringFunc::Path::GetFullFileName(assetId.c_str(), info.m_displayName);
+        AZ::StringFunc::Path::GetFullFileName(assetId.c_str(), info.m_displayName);
         info.m_assetId = assetIdLower;
         info.m_bSourceControl_BusyGettingStats = true;
         info.m_bSourceControl_BusyGettingStats = false;
@@ -1555,7 +1578,10 @@ namespace LUAEditor
         const AZStd::string k_luaScriptFileString = "files";
 
         const AzFramework::CommandLine* commandLine = nullptr;
-        EBUS_EVENT_RESULT(commandLine, LegacyFramework::FrameworkApplicationMessages::Bus, GetCommandLineParser);
+        AZ::ComponentApplicationBus::Broadcast([&commandLine](AZ::ComponentApplicationRequests* requests)
+            {
+                commandLine = requests->GetAzCommandLine();
+            });
 
         AZStd::string parameters = "";
         size_t numSwitchValues = commandLine->GetNumSwitchValues(k_luaScriptFileString);
@@ -1598,7 +1624,6 @@ namespace LUAEditor
         }
 
         const char* scriptData = docInfoIter->second.m_scriptAsset.c_str();
-        size_t scriptDataSize = docInfoIter->second.m_scriptAsset.size();
 
         EBUS_EVENT(LUAEditor::LUAStackTrackerMessages::Bus, StackClear);
 
@@ -1627,8 +1652,7 @@ namespace LUAEditor
             return;
         }
 
-        // otherwise we've been told to execute it on the debugger remotely:
-        EBUS_EVENT(LUAEditorDebuggerMessages::Bus, ExecuteScript, debugName, scriptData, scriptDataSize);
+        // otherwise we've been told to execute it on the debugger remotely which is presently unsupported
     }
 
     void Context::SynchronizeBreakpoints()
@@ -1738,8 +1762,8 @@ namespace LUAEditor
     void Context::MoveBreakpoint(const AZ::Uuid& breakpointUID, int lineNumber)
     {
         // moving a breakpoint will cause it to update where it is in the document in question
-        // however, we don't actually re-transmit the breakpoint to the gridmate core, because we haven't re-run the script
-        // this is just housekeeping so that when gridmate says a certain breakpoint came in at a certain place,
+        // however, we don't actually re-transmit the breakpoint over the wire, because we haven't re-run the script
+        // this is just housekeeping so that when the network says a certain breakpoint came in at a certain place,
         // we know what they're talking about.
 
         if (lineNumber >= 0)
@@ -1793,8 +1817,16 @@ namespace LUAEditor
     void Context::OnBreakpointHit(const AZStd::string& relativePath, int lineNumber)
     {
         // Convert from debug path (relative) to absolute path (how the Lua IDE stores files)
-        AZStd::string absolutePath = relativePath.substr(1);
-        EBUS_EVENT(AzToolsFramework::AssetSystemRequestBus, GetFullSourcePathFromRelativeProductPath, absolutePath, absolutePath);
+        AZStd::string absolutePath;
+        AZStd::string formattedRelativePath = relativePath.substr(1);
+        EBUS_EVENT(AzToolsFramework::AssetSystemRequestBus, GetFullSourcePathFromRelativeProductPath, formattedRelativePath, absolutePath);
+
+        // If finding a .lua fails, attempt the equivalent .luac
+        if (absolutePath.empty() && relativePath.ends_with(".lua"))
+        {
+            formattedRelativePath = relativePath.substr(1) + "c";
+            EBUS_EVENT(AzToolsFramework::AssetSystemRequestBus, GetFullSourcePathFromRelativeProductPath, formattedRelativePath, absolutePath); 
+        }
 
         //AZ_TracePrintf(LUAEditorDebugName, "Breakpoint '%s' was hit on line %i\n", assetIdString.c_str(), lineNumber);
         EBUS_EVENT(LUAEditorDebuggerMessages::Bus, GetCallstack);
@@ -2448,7 +2480,7 @@ namespace LUAEditor
                                     if (matchFound)
                                     {
                                         int lineNumber = 0;
-                                        if (AzFramework::StringFunc::LooksLikeInt(match[1].str().c_str(), &lineNumber))
+                                        if (AZ::StringFunc::LooksLikeInt(match[1].str().c_str(), &lineNumber))
                                         {
                                             errorData->m_lineNumber = lineNumber;
                                             finalMessage = match[2].str().c_str();
@@ -2467,6 +2499,6 @@ namespace LUAEditor
 
     bool Context::IsLuaAsset(const AZStd::string& assetPath)
     {
-        return AzFramework::StringFunc::Path::IsExtension(assetPath.c_str(), ".lua");
+        return AZ::StringFunc::Path::IsExtension(assetPath.c_str(), ".lua");
     }
 }

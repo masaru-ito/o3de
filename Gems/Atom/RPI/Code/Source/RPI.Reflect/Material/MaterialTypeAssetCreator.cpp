@@ -22,17 +22,6 @@ namespace AZ
             {
                 m_materialPropertiesLayout = aznew MaterialPropertiesLayout;
                 m_asset->m_materialPropertiesLayout = m_materialPropertiesLayout;
-
-                auto warningFunc = [this](const char* message)
-                {
-                    ReportWarning("%s", message);
-                };
-                auto errorFunc = [this](const char* message)
-                {
-                    ReportError("%s", message);
-                };
-                // Set empty for UV names as material type asset doesn't have overrides.
-                MaterialAssetCreatorCommon::OnBegin(m_materialPropertiesLayout, &(m_asset->m_propertyValues), warningFunc, errorFunc);
             }
         }
 
@@ -47,8 +36,6 @@ namespace AZ
 
             m_materialShaderResourceGroupLayout = nullptr;
             m_materialPropertiesLayout = nullptr;
-
-            MaterialAssetCreatorCommon::OnEnd();
 
             return EndCommon(result);
         }
@@ -102,51 +89,16 @@ namespace AZ
 
         bool MaterialTypeAssetCreator::ValidateMaterialVersion()
         {
-            if (m_asset->m_materialVersionUpdates.empty())
-            {
-                return true;
-            }
-
-            uint32_t prevVersion = 0;
-            for(const MaterialVersionUpdate& versionUpdate : m_asset->m_materialVersionUpdates)
-            {
-                if (versionUpdate.GetVersion() <= prevVersion)
-                {
-                    ReportError("Version updates are not sequential. See version update '%u'.", versionUpdate.GetVersion());
-                    return false;
-                }
-                
-                if (versionUpdate.GetVersion() > m_asset->m_version)
-                {
-                    ReportError("Version updates go beyond the current material type version. See version update '%u'.", versionUpdate.GetVersion());
-                    return false;
-                }
-
-                prevVersion = versionUpdate.GetVersion();
-            }
-
-            const auto& lastMaterialVersionUpdate = m_asset->m_materialVersionUpdates.back();
-            for (const auto& action : lastMaterialVersionUpdate.GetActions())
-            {                
-                const auto propertyIndex = m_asset->m_materialPropertiesLayout->FindPropertyIndex(AZ::Name{ action.m_toPropertyId });
-                if (!propertyIndex.IsValid())
-                {
-                    ReportError("Renamed property '%s' not found in material property layout. Check that the property name has been "
-                            "upgraded to the correct version",
-                            action.m_toPropertyId.GetCStr());
-                    return false;
-                }
-
-            }
-
-            return true;
+            return m_asset->m_materialVersionUpdates.ValidateUpdates(
+                m_asset->m_version, m_asset->GetMaterialPropertiesLayout(),
+                [this](const char* message){ ReportError("%s", message); });
         }
 
-        void MaterialTypeAssetCreator::AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const ShaderVariantId& shaderVaraintId, const AZ::Name& shaderTag)
+        void MaterialTypeAssetCreator::AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const ShaderVariantId& shaderVariantId, const AZ::Name& shaderTag)
         {
             if (ValidateIsReady() && ValidateNotNull(shaderAsset, "ShaderAsset"))
             {
-                m_asset->m_shaderCollection.m_shaderItems.push_back(ShaderCollection::Item{shaderAsset, shaderTag, shaderVaraintId});
+                m_asset->m_shaderCollection.m_shaderItems.push_back(ShaderCollection::Item{shaderAsset, shaderTag, shaderVariantId});
                 if (!m_asset->m_shaderCollection.m_shaderTagIndexMap.Insert(shaderTag, RHI::Handle<uint32_t>(m_asset->m_shaderCollection.m_shaderItems.size() - 1)))
                 {
                     ReportError(AZStd::string::format("Failed to insert shader tag '%s'. Shader tag must be unique.", shaderTag.GetCStr()).c_str());
@@ -158,6 +110,11 @@ namespace AZ
 
                 CacheMaterialSrgLayout();
             }
+        }
+
+        void MaterialTypeAssetCreator::AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const ShaderVariantId& shaderVariantId)
+        {
+            AddShader(shaderAsset, shaderVariantId, AZ::Name(AZ::Uuid::CreateRandom().ToFixedString()));
         }
 
         void MaterialTypeAssetCreator::AddShader(const AZ::Data::Asset<ShaderAsset>& shaderAsset, const AZ::Name& shaderTag)
@@ -172,7 +129,7 @@ namespace AZ
 
         void MaterialTypeAssetCreator::AddVersionUpdate(const MaterialVersionUpdate& materialVersionUpdate)
         {
-            m_asset->m_materialVersionUpdates.push_back(materialVersionUpdate);
+            m_asset->m_materialVersionUpdates.AddVersionUpdate(materialVersionUpdate);
         }
 
         void MaterialTypeAssetCreator::ClaimShaderOptionOwnership(const Name& shaderOptionName)
@@ -483,6 +440,54 @@ namespace AZ
             AddMaterialProperty(AZStd::move(m_wipMaterialProperty));
 
             m_wipMaterialProperty = MaterialPropertyDescriptor{};
+        }
+        
+        bool MaterialTypeAssetCreator::PropertyCheck(TypeId typeId, const Name& name)
+        {
+            MaterialPropertyIndex propertyIndex = m_materialPropertiesLayout->FindPropertyIndex(name);
+            if (!propertyIndex.IsValid())
+            {
+                ReportWarning("Material property '%s' not found", name.GetCStr());
+                return false;
+            }
+
+            const MaterialPropertyDescriptor* materialPropertyDescriptor = m_materialPropertiesLayout->GetPropertyDescriptor(propertyIndex);
+            if (!materialPropertyDescriptor)
+            {
+                ReportError("A material property index was found but the property descriptor was null");
+                return false;
+            }
+
+            if (!ValidateMaterialPropertyDataType(typeId, name, materialPropertyDescriptor, [this](const char* message){ReportError("%s", message);}))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        void MaterialTypeAssetCreator::SetPropertyValue(const Name& name, const Data::Asset<ImageAsset>& imageAsset)
+        {
+            return SetPropertyValue(name, MaterialPropertyValue(imageAsset));
+        }
+
+        void MaterialTypeAssetCreator::SetPropertyValue(const Name& name, const MaterialPropertyValue& value)
+        {
+            if (PropertyCheck(value.GetTypeId(), name))
+            {
+                MaterialPropertyIndex propertyIndex = m_materialPropertiesLayout->FindPropertyIndex(name);
+                m_asset->m_propertyValues[propertyIndex.GetIndex()] = value;
+            }
+        }
+
+        void MaterialTypeAssetCreator::SetPropertyValue(const Name& name, const Data::Asset<StreamingImageAsset>& imageAsset)
+        {
+            SetPropertyValue(name, Data::Asset<ImageAsset>(imageAsset));
+        }
+
+        void MaterialTypeAssetCreator::SetPropertyValue(const Name& name, const Data::Asset<AttachmentImageAsset>& imageAsset)
+        {
+            SetPropertyValue(name, Data::Asset<ImageAsset>(imageAsset));
         }
 
         void MaterialTypeAssetCreator::AddMaterialFunctor(const Ptr<MaterialFunctor>& functor)

@@ -86,9 +86,12 @@ namespace AZ
             createInfo.components = VkComponentMapping{}; // identity mapping
             createInfo.subresourceRange = vkRange;
 
-            const VkResult result = vkCreateImageView(device.GetNativeDevice(), &createInfo, nullptr, &m_vkImageView);
+            const VkResult result = device.GetContext().CreateImageView(device.GetNativeDevice(), &createInfo, nullptr, &m_vkImageView);
             AssertSuccess(result);
             RETURN_RESULT_IF_UNSUCCESSFUL(ConvertResult(result));
+
+            m_hash = TypeHash64(m_imageSubresourceRange.GetHash(), m_hash);
+            m_hash = TypeHash64(m_format, m_hash);
 
             SetName(GetName());
             return RHI::ResultCode::Success;
@@ -105,7 +108,8 @@ namespace AZ
             if (m_vkImageView != VK_NULL_HANDLE)
             {
                 auto& device = static_cast<Device&>(GetDevice());
-                device.QueueForRelease(new ReleaseContainer<VkImageView>(device.GetNativeDevice(), m_vkImageView, vkDestroyImageView));
+                device.QueueForRelease(
+                    new ReleaseContainer<VkImageView>(device.GetNativeDevice(), m_vkImageView, device.GetContext().DestroyImageView));
                 m_vkImageView = VK_NULL_HANDLE;
             }
         }

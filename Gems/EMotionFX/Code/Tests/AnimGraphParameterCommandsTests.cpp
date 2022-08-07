@@ -39,16 +39,6 @@
 
 namespace AnimGraphParameterCommandsTests
 {
-    namespace AZStd
-    {
-        using namespace ::AZStd;
-    } // namespace AZStd
-
-    namespace AZ
-    {
-        using namespace ::AZ;
-    } // namespace AZ
-
     namespace MCore
     {
         using ::MCore::Command;
@@ -102,7 +92,6 @@ namespace AnimGraphParameterCommandsTests
 #include <Tests/Mocks/AnimGraphInstance.h>
 #include <Tests/Mocks/AnimGraphManager.h>
 #include <Tests/Mocks/AnimGraphObject.h>
-#include <Tests/Mocks/AnimGraphObjectData.h>
 #include <Tests/Mocks/AnimGraphNode.h>
 #include <Tests/Mocks/AnimGraphStateTransition.h>
 #include <Tests/Mocks/EMotionFXManager.h>
@@ -115,7 +104,8 @@ namespace AnimGraphParameterCommandsTests
 #include <Tests/Mocks/CommandSystemCommandManager.h>
 #include <Tests/Mocks/BlendTreeParameterNode.h>
 
-#include <EMotionFX/CommandSystem/Source/AnimGraphParameterCommands.cpp>
+#include <EMotionFX/CommandSystem/Source/AnimGraphParameterCommands_Interface.inl>
+#include <EMotionFX/CommandSystem/Source/AnimGraphParameterCommands_Impl.inl>
 
     class TestParameter
         : public EMotionFX::ValueParameter

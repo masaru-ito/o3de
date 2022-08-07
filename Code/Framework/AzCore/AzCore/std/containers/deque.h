@@ -135,9 +135,10 @@ namespace AZStd
             AZ_FORCE_INLINE this_type& operator--()     { --m_offset;   return *this;   }
             AZ_FORCE_INLINE this_type  operator--(int)  { this_type tmp = *this; --m_offset; return tmp; }
             AZ_FORCE_INLINE this_type& operator+=(difference_type offset)   { m_offset += offset; return *this; }
-            AZ_FORCE_INLINE this_type  operator+(difference_type offset)        { this_type tmp = *this; tmp += offset; return tmp; }
+            AZ_FORCE_INLINE this_type  operator+(difference_type offset) const   { this_type tmp = *this; tmp += offset; return tmp; }
+            friend AZ_FORCE_INLINE this_type operator+(difference_type offset, const this_type& rhs) { this_type tmp = rhs; tmp += offset; return tmp; }
             AZ_FORCE_INLINE this_type& operator-=(difference_type offset)   { m_offset -= offset; return *this; }
-            AZ_FORCE_INLINE this_type  operator-(difference_type offset)        { this_type tmp = *this; tmp -= offset; return tmp; }
+            AZ_FORCE_INLINE this_type  operator-(difference_type offset) const  { this_type tmp = *this; tmp -= offset; return tmp; }
             /// ???
             AZ_FORCE_INLINE difference_type operator-(const this_type& rhs) const
             {
@@ -197,9 +198,10 @@ namespace AZStd
             AZ_FORCE_INLINE this_type& operator--()     { --base_type::m_offset;    return *this;   }
             AZ_FORCE_INLINE this_type  operator--(int)  { this_type tmp = *this; --base_type::m_offset; return tmp; }
             AZ_FORCE_INLINE this_type& operator+=(difference_type offset)   { base_type::m_offset += offset; return *this; }
-            AZ_FORCE_INLINE this_type  operator+(difference_type offset)        { this_type tmp = *this; tmp += offset; return tmp; }
+            AZ_FORCE_INLINE this_type  operator+(difference_type offset) const { this_type tmp = *this; tmp += offset; return tmp; }
+            friend AZ_FORCE_INLINE this_type  operator+(difference_type offset, const this_type& rhs) { this_type tmp = rhs; tmp += offset; return tmp; }
             AZ_FORCE_INLINE this_type& operator-=(difference_type offset)   { base_type::m_offset -= offset; return *this; }
-            AZ_FORCE_INLINE this_type  operator-(difference_type offset)        { this_type tmp = *this; tmp -= offset; return tmp; }
+            AZ_FORCE_INLINE this_type  operator-(difference_type offset) const { this_type tmp = *this; tmp -= offset; return tmp; }
             AZ_FORCE_INLINE difference_type operator-(const this_type& rhs) const
             {
                 return rhs.m_offset <= base_type::m_offset ? base_type::m_offset - rhs.m_offset : -(difference_type)(rhs.m_offset - base_type::m_offset);
@@ -325,15 +327,19 @@ namespace AZStd
             return *this;
         }
 
-        AZ_FORCE_INLINE iterator        begin()         { return iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset, this)); }
-        AZ_FORCE_INLINE const_iterator  begin() const   { return const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset, this)); }
-        AZ_FORCE_INLINE iterator        end()           { return iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset + m_size, this)); }
-        AZ_FORCE_INLINE const_iterator  end() const     { return const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset + m_size, this)); }
+        AZ_FORCE_INLINE iterator        begin() noexcept         { return iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset, this)); }
+        AZ_FORCE_INLINE const_iterator  begin() const noexcept   { return cbegin(); }
+        AZ_FORCE_INLINE const_iterator  cbegin() const noexcept  { return const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset, this)); }
+        AZ_FORCE_INLINE iterator        end() noexcept           { return iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset + m_size, this)); }
+        AZ_FORCE_INLINE const_iterator  end() const noexcept     { return cend(); }
+        AZ_FORCE_INLINE const_iterator  cend() const noexcept    { return const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset + m_size, this)); }
 
-        AZ_FORCE_INLINE reverse_iterator        rbegin()        { return reverse_iterator(iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset + m_size, this))); }
-        AZ_FORCE_INLINE const_reverse_iterator  rbegin() const  { return const_reverse_iterator(const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset + m_size, this))); }
-        AZ_FORCE_INLINE reverse_iterator        rend()          { return reverse_iterator(iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset, this))); }
-        AZ_FORCE_INLINE const_reverse_iterator  rend() const    { return const_reverse_iterator(const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset, this))); }
+        AZ_FORCE_INLINE reverse_iterator        rbegin() noexcept        { return reverse_iterator(iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset + m_size, this))); }
+        AZ_FORCE_INLINE const_reverse_iterator  rbegin() const noexcept  { return crbegin(); }
+        AZ_FORCE_INLINE const_reverse_iterator  crbegin() const noexcept { return const_reverse_iterator(const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset + m_size, this))); }
+        AZ_FORCE_INLINE reverse_iterator        rend() noexcept          { return reverse_iterator(iterator(AZSTD_CHECKED_ITERATOR_2(iterator_impl, m_firstOffset, this))); }
+        AZ_FORCE_INLINE const_reverse_iterator  rend() const noexcept    { return crend(); }
+        AZ_FORCE_INLINE const_reverse_iterator  crend() const noexcept   { return const_reverse_iterator(const_iterator(AZSTD_CHECKED_ITERATOR_2(const_iterator_impl, m_firstOffset, this))); }
 
         AZ_FORCE_INLINE void resize(size_type newSize)              { resize(newSize, value_type()); }
         AZ_FORCE_INLINE void resize(size_type newSize, const value_type& value)
@@ -468,13 +474,13 @@ namespace AZStd
 
         iterator insert(const_iterator insertPos, const value_type& value)
         {
-            iterator last, first = begin();
+            iterator first = begin();
             if (insertPos == first)
             {
                 push_front(value);
                 return begin();
             }
-            else if (insertPos == (last = end()))
+            else if (iterator last = end(); insertPos == last)
             {
                 push_back(value);
                 return end() - 1;
@@ -504,10 +510,10 @@ namespace AZStd
             }
         }
 
-        void insert(const_iterator insertPos, size_type numElements, const value_type& value)
+        iterator insert(const_iterator insertPos, size_type numElements, const value_type& value)
         {
             iterator  mid;
-            size_type offset = insertPos - begin();
+            const size_type offset = insertPos - begin();
             size_type rem = m_size - offset;
             //          size_type size = m_size;
             size_type i;
@@ -567,17 +573,19 @@ namespace AZStd
                     Internal::fill(mid, mid + numElements, valueCopy, Internal::is_fast_fill<iterator>());
                 }
             }
-        }
 
-        AZ_FORCE_INLINE void insert(const_iterator insertPos, std::initializer_list<value_type> list)
-        {
-            insert(insertPos, list.begin(), list.end());
+            return AZStd::ranges::next(begin(), offset);
         }
 
         template<class InputIterator>
-        AZ_FORCE_INLINE void insert(const_iterator insertPos, InputIterator first, InputIterator last)
+        iterator insert(const_iterator insertPos, InputIterator first, InputIterator last)
         {
-            insert_iter(insertPos, first, last, is_integral<InputIterator>());
+            return insert_iter(insertPos, first, last, is_integral<InputIterator>());
+        }
+
+        iterator insert(const_iterator insertPos, initializer_list<value_type> list)
+        {
+            return insert(insertPos, list.begin(), list.end());
         }
 
         AZ_FORCE_INLINE iterator erase(iterator erasePos)
@@ -679,11 +687,11 @@ namespace AZStd
             , m_size(0)
             , m_allocator(rhs.m_allocator)
         {
-            assign_rv(AZStd::forward<this_type>(rhs));
+            assign_rv(AZStd::move(rhs));
         }
         this_type& operator=(this_type&& rhs)
         {
-            assign_rv(AZStd::forward<this_type>(rhs));
+            assign_rv(AZStd::move(rhs));
             return *this;
         }
 
@@ -698,7 +706,7 @@ namespace AZStd
                 clear();
                 for (iterator iter = rhs.begin(); iter != rhs.end(); ++iter)
                 {
-                    push_back(AZStd::forward<T>(*iter));
+                    push_back(AZStd::move(*iter));
                 }
             }
             else
@@ -736,7 +744,7 @@ namespace AZStd
             }
 
             map_node_type ptr = m_map[block] + newOffset % NumElementsPerBlock;
-            Internal::construct<map_node_type>::single(ptr, AZStd::forward<value_type>(value));
+            Internal::construct<map_node_type>::single(ptr, AZStd::move(value));
 
             m_firstOffset = newOffset;
             ++m_size;
@@ -763,7 +771,7 @@ namespace AZStd
             }
 
             map_node_type ptr = m_map[block] + newOffset % NumElementsPerBlock;
-            Internal::construct<map_node_type>::single(ptr, AZStd::forward<value_type>(value));
+            Internal::construct<map_node_type>::single(ptr, AZStd::move(value));
             ++m_size;
         }
 
@@ -792,7 +800,7 @@ namespace AZStd
         }
 
         template<class... Args>
-        void emplace_back(Args&&... args)
+        reference emplace_back(Args&&... args)
         {
 #ifdef AZSTD_HAS_CHECKED_ITERATORS
             orphan_all();
@@ -815,6 +823,7 @@ namespace AZStd
             map_node_type ptr = m_map[block] + newOffset % NumElementsPerBlock;
             Internal::construct<map_node_type>::single(ptr, AZStd::forward<Args>(args)...);
             ++m_size;
+            return *ptr;
         }
 
         template<class Args>
@@ -842,7 +851,7 @@ namespace AZStd
 
         void swap(this_type&& rhs)
         {
-            assign_rv(AZStd::forward<this_type>(rhs));
+            assign_rv(AZStd::move(rhs));
         }
 
         /**
@@ -909,63 +918,6 @@ namespace AZStd
 
             return isf_valid | isf_can_dereference;
         }
-
-        /**
-        *  Pushes an element at the front of the deque without a provided instance. This can be used for value types
-        *  with expensive constructors so we don't want to create temporary one.
-        */
-        inline void push_front()
-        {
-#ifdef AZSTD_HAS_CHECKED_ITERATORS
-            orphan_all();
-#endif
-            if (m_firstOffset % NumElementsPerBlock == 0 && m_mapSize <= (m_size + NumElementsPerBlock) / NumElementsPerBlock)
-            {
-                grow_map(1);
-            }
-            size_type newOffset = m_firstOffset != 0 ? m_firstOffset : m_mapSize * NumElementsPerBlock;
-            size_type block = --newOffset / NumElementsPerBlock;
-            if (m_map[block] == 0)
-            {
-                m_map[block] = reinterpret_cast<pointer>(m_allocator.allocate(sizeof(block_node_type), alignment_of<block_node_type>::value));
-            }
-
-            pointer toCreate = m_map[block] + newOffset % NumElementsPerBlock;
-            Internal::construct<pointer>::single(toCreate);
-
-            m_firstOffset = newOffset;
-            ++m_size;
-        }
-
-        /**
-        *  Pushes an element at the back of the deque without a provided instance. This can be used for value types
-        *  with expensive constructors so we don't want to create temporary one.
-        */
-        inline void push_back()
-        {
-#ifdef AZSTD_HAS_CHECKED_ITERATORS
-            orphan_all();
-#endif
-            if ((m_firstOffset + m_size) % NumElementsPerBlock == 0 && m_mapSize <= (m_size + NumElementsPerBlock) / NumElementsPerBlock)
-            {
-                grow_map(1);
-            }
-            size_type newOffset = m_firstOffset + m_size;
-            size_type block = newOffset / NumElementsPerBlock;
-            if (m_mapSize <= block)
-            {
-                block  -= m_mapSize;
-            }
-            if (m_map[block] == 0)
-            {
-                m_map[block] = reinterpret_cast<pointer>(m_allocator.allocate(sizeof(block_node_type), alignment_of<block_node_type>::value));
-            }
-
-            pointer toCreate = m_map[block] + newOffset % NumElementsPerBlock;
-            Internal::construct<pointer>::single(toCreate);
-            ++m_size;
-        }
-
 
         /**
         * Resets the container without deallocating any memory or calling any destructor.
@@ -1068,16 +1020,15 @@ namespace AZStd
             insert(begin(), first, last);
         }
         template<class InputIterator>
-        AZ_FORCE_INLINE void insert_iter(const_iterator insertPos, const InputIterator& first, const InputIterator& last, const true_type& /* is_intergral<InputIterator>()*/)
+        AZ_FORCE_INLINE iterator insert_iter(const_iterator insertPos, const InputIterator& first, const InputIterator& last, const true_type& /* is_intergral<InputIterator>()*/)
         {
-            insert(insertPos, (size_type)first, (value_type)last);
+            return insert(insertPos, (size_type)first, (value_type)last);
         }
 
         template<class InputIterator>
-        void insert_iter(const_iterator insertPos, const InputIterator& first, const InputIterator& last, const false_type& /* !is_intergral<InputIterator>()*/)
+        iterator insert_iter(const_iterator insertPos, const InputIterator& first, const InputIterator& last, const false_type& /* !is_intergral<InputIterator>()*/)
         {
-            AZSTD_CONTAINER_ASSERT(first != last, "AZStd::deque::insert_iter - first and last iterator are the same!");
-            size_type offset = insertPos - begin();
+            size_type offset = AZStd::ranges::distance(begin(), insertPos);
             size_type rem = m_size - offset;
             size_type size = m_size;
             if (offset < rem)
@@ -1116,6 +1067,8 @@ namespace AZStd
                     reverse(offset, m_size);
                 }
             }
+
+            return AZStd::ranges::next(begin(), offset);
         }
 
         inline void reverse(size_type first, size_type last)
@@ -1175,12 +1128,16 @@ namespace AZStd
 #endif // AZSTD_HAS_CHECKED_ITERATORS
 
     protected:
-        map_node_ptr_type   m_map;          ///< Pointer to array of pointers to blocks.
-        size_type           m_mapSize;      ///< Size of map array.
-        size_type           m_firstOffset;  ///< Offset of initial element.
-        size_type           m_size;         ///< Number of elements in the deque.
-        allocator_type      m_allocator;    ///< Instance of the allocator.
+        map_node_ptr_type   m_map{};          ///< Pointer to array of pointers to blocks.
+        size_type           m_mapSize{};      ///< Size of map array.
+        size_type           m_firstOffset{};  ///< Offset of initial element.
+        size_type           m_size{};         ///< Number of elements in the deque.
+        allocator_type      m_allocator{};    ///< Instance of the allocator.
     };
+
+    // AZStd::deque deduction guides
+    template <class InputIt, class Alloc = allocator>
+    deque(InputIt, InputIt, Alloc = Alloc()) -> deque<typename iterator_traits<InputIt>::value_type, Alloc>;
 
     template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
     AZ_FORCE_INLINE bool operator==(const deque<T, Allocator, NumElementsPerBlock, MinMapSize>& left, const deque<T, Allocator, NumElementsPerBlock, MinMapSize>& right)
@@ -1192,45 +1149,12 @@ namespace AZStd
     {
         return !(left.size() == right.size() && AZStd::equal(left.begin(), left.end(), right.begin()));
     }
-    /*template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
-    AZ_FORCE_INLINE bool operator< (const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& left,const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& right)
-    {
 
-    }
-    template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
-    AZ_FORCE_INLINE bool operator> (const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& left,const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& right)
-    {
-
-    }
-    template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
-    AZ_FORCE_INLINE bool operator>=(const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& left,const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& right)
-    {
-
-    }
-    template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
-    AZ_FORCE_INLINE bool operator<=(const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& left,const deque<T,Allocator,NumElementsPerBlock,MinMapSize>& right)
-    {
-
-    }*/
     // specialized algorithms:
     template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
     AZ_FORCE_INLINE void swap(deque<T, Allocator, NumElementsPerBlock, MinMapSize>& left, deque<T, Allocator, NumElementsPerBlock, MinMapSize>& right)
     {
         left.swap(right);
-    }
-
-    template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
-    inline void swap(deque<T, Allocator, NumElementsPerBlock, MinMapSize>& left, deque<T, Allocator, NumElementsPerBlock, MinMapSize>&& right)
-    {
-        typedef deque<T, Allocator, NumElementsPerBlock, MinMapSize> this_type;
-        left.swap(AZStd::forward<this_type>(right));
-    }
-
-    template <class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize>
-    inline void swap(deque<T, Allocator, NumElementsPerBlock, MinMapSize>&& left, deque<T, Allocator, NumElementsPerBlock, MinMapSize>& right)
-    {
-        typedef deque<T, Allocator, NumElementsPerBlock, MinMapSize> this_type;
-        right.swap(AZStd::forward<this_type>(left));
     }
 
     template<class T, class Allocator, AZStd::size_t NumElementsPerBlock, AZStd::size_t MinMapSize, class U>

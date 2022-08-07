@@ -16,14 +16,14 @@
 #include <AzCore/Memory/OSAllocator.h>
 #include <AzCore/Name/Name.h>
 
-namespace MaterialEditor
-{
-    class MaterialEditorCoreComponent;
-}
-
 namespace UnitTest
 {
     class NameDictionaryTester;
+
+    // forward declare RunConcurrencyTest function in UnitTest namespace
+    // so it can be friended
+    template<class ConcurrencyTestThreadT>
+    void RunConcurrencyTest(uint32_t nameCount, uint32_t threadsPerName);
 }
 
 namespace AZ
@@ -45,18 +45,23 @@ namespace AZ
     //! that already exist.
     class NameDictionary final
     {
+    public:
         AZ_CLASS_ALLOCATOR(NameDictionary, AZ::OSAllocator, 0);
+    private:
 
         friend Module;
         friend Name;
         friend Internal::NameData;
         friend UnitTest::NameDictionaryTester;
+        template<class ConcurrentcyTestThreadT>
+        friend void UnitTest::RunConcurrencyTest(uint32_t nameCount, uint32_t threadsPerName);
+
         template<typename T, typename... Args> friend constexpr auto AZStd::construct_at(T*, Args&&... args)
             -> AZStd::enable_if_t<AZStd::is_void_v<AZStd::void_t<decltype(new (AZStd::declval<void*>()) T(AZStd::forward<Args>(args)...))>>, T*>;
         template<typename T> constexpr friend void AZStd::destroy_at(T*);
 
     public:
-
+        AZ_TYPE_INFO(NameDictionary, "{6DBF9DEA-1F65-44DB-977C-65BA9047E869}");
         static void Create();
 
         static void Destroy();
@@ -75,9 +80,14 @@ namespace AZ
         //! @return A Name instance. If the hash was not found, the Name will be empty.
         Name FindName(Name::Hash hash) const;
 
-    private:
         NameDictionary();
         ~NameDictionary();
+
+        //! Loads a list of names, starting at a given list head, and ensures they're all created and linked
+        //! into our list of deferred load names.
+        void LoadDeferredNames(Name* deferredHead);
+
+    private:
 
         void ReportStats() const;
 
@@ -94,7 +104,36 @@ namespace AZ
         // Does not attempt to resolve hash collisions; that is handled elsewhere.
         Name::Hash CalcHash(AZStd::string_view name);
 
-        AZStd::unordered_map<Name::Hash, Internal::NameData*> m_dictionary;
+        //! Loads the NameData for a given name literal (a Name created with Name::FromStringLiteral)
+        void LoadLiteral(Name& name);
+        //! Loads a name that was potentially created before this dictionary, ensuring its name data
+        //! is loaded and that it is linked into our list of deferred load names to be released later.
+        void LoadDeferredName(Name& deferredName);
+        //! Unloads the data with all deferred names registered using LoadDeferredName.
+        void UnloadDeferredNames();
+
+        //! Wrapper structure around a NameData pointer
+        //! Which sets the Internal::NameData::m_nameDictionary pointer to this name dictionary
+        //! instance on construction and to nullptr on destruction
+        struct ScopedNameDataWrapper
+        {
+            ScopedNameDataWrapper(NameDictionary& nameDictionary, Internal::NameData* nameData);
+            // Move constructor to prevent m_nameData from being propagated to copies
+            ScopedNameDataWrapper(ScopedNameDataWrapper&&);
+            ~ScopedNameDataWrapper();
+
+            Internal::NameData* m_nameData{};
+        private:
+            NameDictionary& m_nameDictionary;
+        };
+
+        AZStd::unordered_map<Name::Hash, ScopedNameDataWrapper> m_dictionary;
         mutable AZStd::shared_mutex m_sharedMutex;
+
+        //! A fixed Name used as the head of a linked list of Name literals.
+        //! These literals can be static and have lifecycles not coupled to the name dictionary,
+        //! so we keep track of them here to ensure their name data gets correctly cleaned up
+        //! when this dictionary is shut down.
+        Name m_deferredHead;
     };
 }

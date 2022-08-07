@@ -100,7 +100,7 @@ bool CGameExporter::Export(unsigned int flags, [[maybe_unused]] EEndian eExportE
 
     bool usePrefabSystemForLevels = false;
     AzFramework::ApplicationRequests::Bus::BroadcastResult(
-        usePrefabSystemForLevels, &AzFramework::ApplicationRequests::IsPrefabSystemForLevelsEnabled);
+        usePrefabSystemForLevels, &AzFramework::ApplicationRequests::IsPrefabSystemEnabled);
 
     if (usePrefabSystemForLevels)
     {
@@ -315,11 +315,6 @@ void CGameExporter::ExportLevelInfo(const QString& path)
 
     QString levelName = pEditor->GetGameEngine()->GetLevelPath();
     root->setAttr("Name", levelName.toUtf8().data());
-    auto terrain = AzFramework::Terrain::TerrainDataRequestBus::FindFirstHandler();
-    const AZ::Aabb terrainAabb = terrain ? terrain->GetTerrainAabb() : AZ::Aabb::CreateFromPoint(AZ::Vector3::CreateZero());
-    const AZ::Vector2 terrainGridResolution = terrain ? terrain->GetTerrainHeightQueryResolution() : AZ::Vector2::CreateOne();
-    const int compiledHeightmapSize = static_cast<int>(terrainAabb.GetXExtent() / terrainGridResolution.GetX());
-    root->setAttr("HeightmapSize", compiledHeightmapSize);
 
     //////////////////////////////////////////////////////////////////////////
     // Save LevelInfo file.

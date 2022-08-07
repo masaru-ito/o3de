@@ -52,7 +52,7 @@ public:
     void SetViewPane(CLayoutViewPane* pViewPane);
     void SetTitle(const QString& title);
     void OnViewportSizeChanged(int width, int height);
-    void OnViewportFOVChanged(float fov);
+    void OnViewportFOVChanged(float fovRadians);
 
     static void AddFOVMenus(QMenu* menu, std::function<void(float)> callback, const QStringList& customPresets);
     static void AddAspectRatioMenus(QMenu* menu, std::function<void(int, int)> callback, const QStringList& customPresets);
@@ -70,6 +70,8 @@ public:
     QMenu* const GetAspectMenu();
     QMenu* const GetResolutionMenu();
 
+    void InitializePrefabViewportFocusPathHandler(AzQtComponents::BreadCrumbs* breadcrumbsWidget, QToolButton* backButton);
+
 Q_SIGNALS:
     void ActionTriggered(int command);
 
@@ -80,10 +82,12 @@ protected:
     void OnSystemEvent(ESystemEvent event, UINT_PTR wparam, UINT_PTR lparam) override;
 
     void OnMaximize();
+    void UpdateEditMode();
     void UpdateDisplayInfo();
 
     void SetupCameraDropdownMenu();
     void SetupResolutionDropdownMenu();
+    void SetupEditModeMenu();
     void SetupViewportInformationMenu();
     void SetupOverflowMenu();
     void SetupHelpersButton();
@@ -110,7 +114,6 @@ protected:
 
     double m_fieldWidthMultiplier = 1.8;
 
-
     void OnMenuFOVCustom();
 
     void CreateFOVMenu();
@@ -120,6 +123,11 @@ protected:
 
     void OnMenuResolutionCustom();
     void CreateResolutionMenu();
+    
+    void CreateEditModeMenu();
+    QMenu* const GetEditModeMenu();
+    void SetNormalEditMode();
+    void SetMonochromaticEditMode();
 
     void CreateViewportInformationMenu();
     QMenu* const GetViewportInformationMenu();
@@ -140,17 +148,20 @@ protected:
 
     void CheckForCameraSpeedUpdate();
 
-    void OnGridSnappingToggled();
-    void OnAngleSnappingToggled();
+    void OnGridSnappingToggled(int state);
+    void OnAngleSnappingToggled(int state);
 
     void OnGridSpinBoxChanged(double value);
     void OnAngleSpinBoxChanged(double value);
 
     void UpdateOverFlowMenuState();
 
+    QAction* m_normalEditModeAction = nullptr;
+    QAction* m_monochromaticEditModeAction = nullptr;
     QMenu* m_fovMenu = nullptr;
     QMenu* m_aspectMenu = nullptr;
     QMenu* m_resolutionMenu = nullptr;
+    QMenu* m_editModeMenu = nullptr;
     QMenu* m_viewportInformationMenu = nullptr;
     QMenu* m_helpersMenu = nullptr;
     QAction* m_helpersAction = nullptr;
@@ -160,8 +171,9 @@ protected:
     QAction* m_fullInformationAction = nullptr;
     QAction* m_compactInformationAction = nullptr;
     QAction* m_audioMuteAction = nullptr;
-    QAction* m_enableGridSnappingAction = nullptr;
-    QAction* m_enableAngleSnappingAction = nullptr;
+    QCheckBox* m_enableGridSnappingCheckBox = nullptr;
+    QCheckBox* m_enableGridVisualizationCheckBox = nullptr;
+    QCheckBox* m_enableAngleSnappingCheckBox = nullptr;
     QComboBox* m_cameraSpeed = nullptr;
     AzQtComponents::DoubleSpinBox* m_gridSpinBox = nullptr;
     AzQtComponents::DoubleSpinBox* m_angleSpinBox = nullptr;
@@ -171,11 +183,21 @@ protected:
     AzToolsFramework::Prefab::PrefabViewportFocusPathHandler* m_prefabViewportFocusPathHandler = nullptr;
 
     QScopedPointer<Ui::ViewportTitleDlg> m_ui;
+
+    //! The different edit mode effects available in the Edit mode menu.
+    enum class FocusModeUxSetting
+    {
+        Normal, //!< No effect.
+        Monochromatic //!< Monochromatic effect.
+    };
+
+    //! The currently active edit mode effect.
+    FocusModeUxSetting m_editMode = FocusModeUxSetting::Monochromatic;
 };
 
 namespace AzToolsFramework
 {
-    //! A component to reflect scriptable commands for the Editor
+    //! A component to reflect scriptable commands for the Editor.
     class ViewportTitleDlgPythonFuncsHandler
         : public AZ::Component
     {

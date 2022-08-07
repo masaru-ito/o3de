@@ -47,7 +47,7 @@ namespace
     const QRegularExpression invalidStart(R"_(^\s*>\s*)_");
     const QRegularExpression invalidEnd(R"_(\s*>\s*$)_");
     const QRegularExpression splitNesting(R"_(\s*>\s*)_");
-    const QRegularExpression selector(R"_(^(?:(?:(\w+)?(\.\w+)?)|(#\w+)?)(:\w+)?$)_");
+    const QRegularExpression s_selectorRegex(R"_(^(?:(?:(\w+)?(\.\w+)?)|(#\w+)?)(:\w+)?$)_");
 
     AZStd::string QtToAz(const QString& source)
     {
@@ -196,6 +196,10 @@ namespace
         else if (attribute == Styling::Attributes::Spacing)
         {
             return Styling::Attribute::Spacing;
+        }
+        else if (attribute == Styling::Attributes::LayoutOrientation)
+        {
+            return Styling::Attribute::LayoutOrientation;
         }
         else if (attribute == Styling::Attributes::Selectors)
         {
@@ -367,6 +371,20 @@ namespace
         else if (QString::compare(value, QLatin1String("center"), Qt::CaseInsensitive) == 0)
         {
             return Qt::AlignVCenter;
+        }
+
+        return {};
+    }
+
+    Qt::Orientation ParseOrientation(const QString& value)
+    {
+        if (QString::compare(value, QLatin1String("vertical"), Qt::CaseInsensitive) == 0)
+        {
+            return Qt::Vertical;
+        }
+        else if (QString::compare(value, QLatin1String("horizontal"), Qt::CaseInsensitive) == 0)
+        {
+            return Qt::Horizontal;
         }
 
         return {};
@@ -917,6 +935,14 @@ namespace GraphCanvas
                     }
                     break;
                 }
+                case Attribute::LayoutOrientation:
+                {
+                    if (Qt::Orientation orientation = ParseOrientation(member->value.GetString()))
+                    {
+                        style->SetAttribute(attribute, orientation);
+                    }
+                    break;
+                }
                 case Attribute::Selectors:
                     break;
                 case Attribute::PaletteStyle:
@@ -1013,7 +1039,7 @@ namespace GraphCanvas
                 nestedSelectors.reserve(parts.size());
                 for (const QString& part : parts)
                 {
-                    auto matches = selector.match(part);
+                    auto matches = s_selectorRegex.match(part);
                     if (!matches.hasMatch())
                     {
                         qWarning() << "Invalid selector:" << part << "in" << candidate;

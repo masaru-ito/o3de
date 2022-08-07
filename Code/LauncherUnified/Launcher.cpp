@@ -10,14 +10,17 @@
 
 #include <AzCore/Casting/numeric_cast.h>
 #include <AzCore/Component/ComponentApplicationLifecycle.h>
+#include <AzCore/Console/IConsole.h>
+#include <AzCore/Debug/BudgetTracker.h>
 #include <AzCore/Debug/Trace.h>
+#include <AzCore/Interface/Interface.h>
 #include <AzCore/IO/Path/Path.h>
 #include <AzCore/IO/SystemFile.h>
 #include <AzCore/Settings/SettingsRegistryMergeUtils.h>
-#include <AzCore/Console/IConsole.h>
 #include <AzCore/std/smart_ptr/make_shared.h>
 #include <AzCore/StringFunc/StringFunc.h>
 #include <AzCore/Utils/Utils.h>
+
 #include <AzFramework/Asset/AssetSystemBus.h>
 #include <AzFramework/IO/RemoteStorageDrive.h>
 #include <AzFramework/Windowing/NativeWindow.h>
@@ -57,7 +60,7 @@ namespace
         AzFramework::WindowSize newSize = AzFramework::WindowSize(aznumeric_cast<int32_t>(value.GetX()), aznumeric_cast<int32_t>(value.GetY()));
         AzFramework::WindowRequestBus::Broadcast(&AzFramework::WindowRequestBus::Events::ResizeClientArea, newSize);
     }
-    
+
     AZ_CVAR(AZ::Vector2, r_viewportPos, AZ::Vector2::CreateZero(), CVar_OnViewportPosition, AZ::ConsoleFunctorFlags::DontReplicate,
         "The default position for the launcher viewport, 0 0 means top left corner of your main desktop");
 
@@ -229,33 +232,68 @@ namespace O3DELauncher
 
     void CreateRemoteFileIO();
 
-    bool ConnectToAssetProcessor()
+    // This function make sure the launcher has signaled the "CriticalAssetsCompiled"
+    // lifecycle event as well as to load the "assetcatalog.xml" file if it exists
+    void CompileCriticalAssets()
     {
-        bool connectedToAssetProcessor{};
-        // When the AssetProcessor is already launched it should take less than a second to perform a connection
-        // but when the AssetProcessor needs to be launch it could take up to 15 seconds to have the AssetProcessor initialize
-        // and able to negotiate a connection when running a debug build
-        // and to negotiate a connection
-        // Setting the connectTimeout to 3 seconds if not set within the settings registry
-
-        AzFramework::AssetSystem::ConnectionSettings connectionSettings;
-        AzFramework::AssetSystem::ReadConnectionSettingsFromSettingsRegistry(connectionSettings);
-
-        connectionSettings.m_launchAssetProcessorOnFailedConnection = true;
-        connectionSettings.m_connectionIdentifier = AzFramework::AssetSystem::ConnectionIdentifiers::Game;
-        connectionSettings.m_loggingCallback = []([[maybe_unused]] AZStd::string_view logData)
+        if (auto settingsRegistry = AZ::SettingsRegistry::Get(); settingsRegistry != nullptr)
         {
-            AZ_TracePrintf("Launcher", "%.*s", aznumeric_cast<int>(logData.size()), logData.data());
-        };
+            // Reload the assetcatalog.xml at this point again
+            // Start Monitoring Asset changes over the network and load the AssetCatalog.
+            // Note: When using VFS this is the first time catalog will be loaded using remote's catalog file.
+            auto LoadCatalog = [settingsRegistry](AZ::Data::AssetCatalogRequests* assetCatalogRequests)
+            {
+                if (AZ::IO::FixedMaxPath assetCatalogPath;
+                    settingsRegistry->Get(assetCatalogPath.Native(), AZ::SettingsRegistryMergeUtils::FilePathKey_CacheRootFolder))
+                {
+                    assetCatalogPath /= "assetcatalog.xml";
+                    assetCatalogRequests->LoadCatalog(assetCatalogPath.c_str());
+                }
+            };
+            AZ::Data::AssetCatalogRequestBus::Broadcast(AZStd::move(LoadCatalog));
 
-        AzFramework::AssetSystemRequestBus::BroadcastResult(connectedToAssetProcessor, &AzFramework::AssetSystemRequestBus::Events::EstablishAssetProcessorConnection, connectionSettings);
+            // Broadcast that critical assets are ready
+            AZ::ComponentApplicationLifecycle::SignalEvent(*settingsRegistry, "CriticalAssetsCompiled", R"({})");
+        }
+    }
 
-        if (connectedToAssetProcessor)
+    // If the connect option is false, this function will return true
+    // to make sure the Launcher passes the connected to AP check
+    // If REMOTE_ASSET_PROCESSOR is not defined, then the launcher doesn't need
+    // to connect to the AssetProcessor and therefore this function returns true
+    bool ConnectToAssetProcessor([[maybe_unused]] bool connect)
+    {
+        bool connectedToAssetProcessor = true;
+#if defined(REMOTE_ASSET_PROCESSOR)
+        if (connect)
         {
-            AZ_TracePrintf("Launcher", "Connected to Asset Processor\n");
-            CreateRemoteFileIO();
+            // When the AssetProcessor is already launched it should take less than a second to perform a connection
+            // but when the AssetProcessor needs to be launch it could take up to 15 seconds to have the AssetProcessor initialize
+            // and able to negotiate a connection when running a debug build
+            // and to negotiate a connection
+            // Setting the connectTimeout to 3 seconds if not set within the settings registry
+
+            AzFramework::AssetSystem::ConnectionSettings connectionSettings;
+            AzFramework::AssetSystem::ReadConnectionSettingsFromSettingsRegistry(connectionSettings);
+
+            connectionSettings.m_launchAssetProcessorOnFailedConnection = true;
+            connectionSettings.m_connectionIdentifier = AzFramework::AssetSystem::ConnectionIdentifiers::Game;
+            connectionSettings.m_loggingCallback = []([[maybe_unused]] AZStd::string_view logData)
+            {
+                AZ_TracePrintf("Launcher", "%.*s", aznumeric_cast<int>(logData.size()), logData.data());
+            };
+
+            AzFramework::AssetSystemRequestBus::BroadcastResult(connectedToAssetProcessor, &AzFramework::AssetSystemRequestBus::Events::EstablishAssetProcessorConnection, connectionSettings);
+
+            if (connectedToAssetProcessor)
+            {
+                AZ_TracePrintf("Launcher", "Connected to Asset Processor\n");
+                CreateRemoteFileIO();
+            }
         }
 
+#endif
+        CompileCriticalAssets();
         return connectedToAssetProcessor;
     }
 
@@ -270,13 +308,29 @@ namespace O3DELauncher
             AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey, "remote_filesystem");
         if (allowRemoteFilesystem != 0)
         {
-            // The SetInstance calls below will assert if this has already been set and we don't clear first
+            using FixedValueString = AZ::SettingsRegistryInterface::FixedValueString;
+
             // Application::StartCommon will set a LocalFileIO base first.
             // This provides an opportunity for the RemoteFileIO to override the direct instance
             auto remoteFileIo = new AZ::IO::RemoteFileIO(AZ::IO::FileIOBase::GetDirectInstance()); // Wrap LocalFileIO the direct instance
+
+            // SetDirectInstance will assert if this has already been set and we don't clear first
             AZ::IO::FileIOBase::SetDirectInstance(nullptr);
             // Wrap AZ:IO::LocalFileIO the direct instance
             AZ::IO::FileIOBase::SetDirectInstance(remoteFileIo);
+
+            // Set file paths to uses aliases, they will be resolved by the remote file system.
+            // Prefixing alias with / so they are treated as absolute paths by Path class,
+            // otherwise odd concatenations of aliases happen leading to invalid paths when
+            // resolved by the remote system.
+            settingsRegistry->Set(FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey) + "/engine_path", "/@engroot@");
+            settingsRegistry->Set(FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey) + "/project_path", "/@projectroot@");
+            settingsRegistry->Set(AZ::SettingsRegistryMergeUtils::FilePathKey_EngineRootFolder, "/@engroot@");
+            settingsRegistry->Set(AZ::SettingsRegistryMergeUtils::FilePathKey_ProjectPath, "/@projectroot@");
+            settingsRegistry->Set(AZ::SettingsRegistryMergeUtils::FilePathKey_CacheRootFolder, "/@products@");
+            settingsRegistry->Set(AZ::SettingsRegistryMergeUtils::FilePathKey_ProjectUserPath, "/@user@");
+            settingsRegistry->Set(AZ::SettingsRegistryMergeUtils::FilePathKey_ProjectLogPath, "/@log@");
+            settingsRegistry->Set(AZ::SettingsRegistryMergeUtils::FilePathKey_DevWriteStorage, "/@usercache@");
         }
     }
 
@@ -403,25 +457,21 @@ namespace O3DELauncher
 
             gameApplication.Start({}, gameApplicationStartupParams);
 
-#if defined(REMOTE_ASSET_PROCESSOR)
-            bool allowedEngineConnection = !systemInitParams.bToolMode && !systemInitParams.bTestMode && bg_ConnectToAssetProcessor;
 
             //connect to the asset processor using the bootstrap values
-            if (allowedEngineConnection)
+            const bool allowedEngineConnection = !systemInitParams.bToolMode && !systemInitParams.bTestMode && bg_ConnectToAssetProcessor;
+            if (!ConnectToAssetProcessor(allowedEngineConnection))
             {
-                if (!ConnectToAssetProcessor())
+                AZ::s64 waitForConnect{};
+                AZ::SettingsRegistryMergeUtils::PlatformGet(*settingsRegistry, waitForConnect,
+                    AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey, "wait_for_connect");
+                if (waitForConnect != 0)
                 {
-                    AZ::s64 waitForConnect{};
-                    AZ::SettingsRegistryMergeUtils::PlatformGet(*settingsRegistry, waitForConnect,
-                        AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey, "wait_for_connect");
-                    if (waitForConnect != 0)
-                    {
-                        AZ_Error("Launcher", false, "Failed to connect to AssetProcessor.");
-                        return ReturnCode::ErrAssetProccessor;
-                    }
+                    AZ_Error("Launcher", false, "Failed to connect to AssetProcessor.");
+                    return ReturnCode::ErrAssetProccessor;
                 }
             }
-#endif
+
             AZ_Assert(AZ::AllocatorInstance<AZ::SystemAllocator>::IsReady(), "System allocator was not created or creation failed.");
             //Initialize the Debug trace instance to create necessary environment variables
             AZ::Debug::Trace::Instance().Init();
@@ -443,7 +493,6 @@ namespace O3DELauncher
         azstrncpy(systemInitParams.szSystemCmdLine, sizeof(systemInitParams.szSystemCmdLine),
             mainInfo.m_commandLine, mainInfo.m_commandLineLen);
 
-        systemInitParams.pSharedEnvironment = AZ::Environment::GetInstance();
         systemInitParams.sLogFileName = GetLogFilename();
         systemInitParams.hInstance = mainInfo.m_instance;
         systemInitParams.hWnd = mainInfo.m_window;
@@ -459,11 +508,15 @@ namespace O3DELauncher
             AZ::Interface<AZ::IConsole>::Get()->PerformCommand("sv_isDedicated false");
         }
 
-        bool remoteFileSystemEnabled{};
+        AZ::s64 remoteFileSystemEnabled{};
         AZ::SettingsRegistryMergeUtils::PlatformGet(*settingsRegistry, remoteFileSystemEnabled,
             AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey, "remote_filesystem");
-        if (remoteFileSystemEnabled)
+        if (remoteFileSystemEnabled != 0)
         {
+            // Reset local variable pathToAssets now that it's using remote file system
+            pathToAssets = "";
+            settingsRegistry->Get(pathToAssets, AZ::SettingsRegistryMergeUtils::FilePathKey_CacheRootFolder);
+
             AZ_TracePrintf("Launcher", "Application is configured for VFS");
             AZ_TracePrintf("Launcher", "Log and cache files will be written to the Cache directory on your host PC");
 
@@ -543,6 +596,17 @@ namespace O3DELauncher
         }
 
     #if !defined(AZ_MONOLITHIC_BUILD)
+
+    #if !defined(_RELEASE)
+        // until CrySystem can be removed (or made to be managed by the component application),
+        // we need to manually clear the BudgetTracker before CrySystem is unloaded so the Budget
+        // pointer(s) it has references to are cleared properly
+        if (auto budgetTracker = AZ::Interface<AZ::Debug::BudgetTracker>::Get(); budgetTracker)
+        {
+            budgetTracker->Reset();
+        }
+    #endif // !defined(_RELEASE)
+
         delete systemInitParams.pSystem;
         crySystemLibrary.reset(nullptr);
     #endif // !defined(AZ_MONOLITHIC_BUILD)

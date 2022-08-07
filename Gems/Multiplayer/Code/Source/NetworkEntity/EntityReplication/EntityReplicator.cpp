@@ -21,9 +21,6 @@
 
 #include <AzNetworking/ConnectionLayer/IConnection.h>
 #include <AzNetworking/PacketLayer/IPacket.h>
-#include <AzNetworking/Serialization/ISerializer.h>
-#include <AzNetworking/Serialization/NetworkInputSerializer.h>
-#include <AzNetworking/Serialization/NetworkOutputSerializer.h>
 
 #include <AzCore/Component/ComponentApplicationBus.h>
 #include <AzCore/Console/IConsole.h>
@@ -33,6 +30,29 @@
 
 namespace Multiplayer
 {
+    void SyncActivatingEntityTransform(AZ::Entity* entity)
+    {
+        NetworkTransformComponent* netTransform = entity->FindComponent<NetworkTransformComponent>();
+        AzFramework::TransformComponent* transformComponent = entity->FindComponent<AzFramework::TransformComponent>();
+
+        if (netTransform && transformComponent)
+        {
+            AZ::Transform transform;
+            transform.SetRotation(netTransform->GetRotation());
+            transform.SetTranslation(netTransform->GetTranslation());
+            transform.SetUniformScale(netTransform->GetScale());
+
+            if (netTransform->GetParentEntityId() == InvalidNetEntityId)
+            {
+                transformComponent->SetWorldTM(transform);
+            }
+            else
+            {
+                transformComponent->SetLocalTM(transform);
+            }
+        }
+    }
+
     EntityReplicator::EntityReplicator
     (
         EntityReplicationManager& replicationManager,
@@ -52,7 +72,7 @@ namespace Multiplayer
         , m_onEntityStopHandler([this](const ConstNetworkEntityHandle&) { OnEntityRemovedEvent(); })
         , m_proxyRemovalEvent([this] { OnProxyRemovalTimedEvent(); }, AZ::Name("ProxyRemovalTimedEvent"))
     {
-        if (auto localEnt = m_entityHandle.GetEntity())
+        if (m_entityHandle.GetEntity())
         {
             m_netBindComponent = m_entityHandle.GetNetBindComponent();
             m_boundLocalNetworkRole = m_netBindComponent->GetNetEntityRole();
@@ -92,7 +112,7 @@ namespace Multiplayer
     {
         AZ_Assert(entityHandle, "Empty handle passed to Initialize");
         m_entityHandle = entityHandle;
-        if (auto localEntity = m_entityHandle.GetEntity())
+        if (m_entityHandle.GetEntity())
         {
             m_netBindComponent = m_entityHandle.GetNetBindComponent();
             AZ_Assert(m_netBindComponent, "No Multiplayer::NetBindComponent");
@@ -145,7 +165,7 @@ namespace Multiplayer
         }
 
         // Prepare event handlers
-        if (auto localEntity = m_entityHandle.GetEntity())
+        if (m_entityHandle.GetEntity())
         {
             NetBindComponent* netBindComponent = m_entityHandle.GetNetBindComponent();
             AZ_Assert(netBindComponent, "No Multiplayer::NetBindComponent");
@@ -168,7 +188,7 @@ namespace Multiplayer
         m_onForwardRpcHandler.Disconnect();
         m_onForwardAutonomousRpcHandler.Disconnect();
 
-        if (auto localEntity = m_entityHandle.GetEntity())
+        if (m_entityHandle.GetEntity())
         {
             NetBindComponent* netBindComponent = m_entityHandle.GetNetBindComponent();
             AZ_Assert(netBindComponent, "No Multiplayer::NetBindComponent");
@@ -250,6 +270,8 @@ namespace Multiplayer
             AZLOG_WARN("Trying to activate an entity that is not in the Init state (%llu)", static_cast<AZ::u64>(GetEntityHandle().GetNetEntityId()));
         }
 
+        SyncActivatingEntityTransform(entity);
+
         entity->Activate();
 
         m_replicationManager.m_orphanedEntityRpcs.DispatchOrphanedRpcs(*this);
@@ -258,7 +280,7 @@ namespace Multiplayer
     bool EntityReplicator::CanSendUpdates()
     {
         bool ret(false);
-        if (auto localEnt = GetEntityHandle().GetEntity())
+        if (GetEntityHandle().GetEntity())
         {
             NetBindComponent* netBindComponent = m_netBindComponent;
             AZ_Assert(netBindComponent, "No Multiplayer::NetBindComponent");
@@ -328,17 +350,16 @@ namespace Multiplayer
 
     bool EntityReplicator::IsMarkedForRemoval() const
     {
-        bool ret(true);
         if (m_propertyPublisher)
         {
-            ret = m_propertyPublisher->IsDeleting();
+            return m_propertyPublisher->IsDeleting();
         }
-        else
+        else if (m_propertySubscriber)
         {
-            AZ_Assert(m_propertySubscriber, "Expected to have at least a subscriber when deleting");
-            ret = m_propertySubscriber->IsDeleting();
+            return m_propertySubscriber->IsDeleting();
         }
-        return ret;
+        AZLOG_WARN("Encountered netentity marked for removal that is not properly bound");
+        return true;
     }
 
     void EntityReplicator::SetPendingRemoval(AZ::TimeMs pendingRemovalTimeMs)
@@ -369,18 +390,17 @@ namespace Multiplayer
 
     bool EntityReplicator::IsDeletionAcknowledged() const
     {
-        bool ret(true);
-        // we sent the delete message, make sure it gets there
+        // We sent the delete message, make sure it gets there
         if (m_propertyPublisher)
         {
-            ret = m_propertyPublisher->IsDeleted();
+            return m_propertyPublisher->IsDeleted();
         }
-        else
+        else if (m_propertySubscriber)
         {
-            AZ_Assert(m_propertySubscriber, "Expected to have at least a subscriber when deleting");
-            ret = m_propertySubscriber->IsDeleted();
+            return m_propertySubscriber->IsDeleted();
         }
-        return ret;
+        AZLOG_WARN("Encountered netentity marked for removal that is not properly bound");
+        return true;
     }
 
     AZ::TimeMs EntityReplicator::GetResendTimeoutTimeMs() const
@@ -403,7 +423,7 @@ namespace Multiplayer
         }
 
         if ((hierarchyChildComponent && hierarchyChildComponent->IsHierarchicalChild())
-            || (hierarchyRootComponent && hierarchyRootComponent->IsHierarchicalChild()))
+         || (hierarchyRootComponent && hierarchyRootComponent->IsHierarchicalChild()))
         {
             // If hierarchy is enabled for the entity, check if the parent is available
             if (const NetworkTransformComponent* networkTransform = entity->FindComponent<NetworkTransformComponent>())
@@ -467,7 +487,7 @@ namespace Multiplayer
             updateMessage.SetPrefabEntityId(netBindComponent->GetPrefabEntityId());
         }
 
-        AzNetworking::NetworkInputSerializer inputSerializer(updateMessage.ModifyData().GetBuffer(), static_cast<uint32_t>(updateMessage.ModifyData().GetCapacity()));
+        InputSerializer inputSerializer(updateMessage.ModifyData().GetBuffer(), static_cast<uint32_t>(updateMessage.ModifyData().GetCapacity()));
         m_propertyPublisher->UpdateSerialization(inputSerializer);
         updateMessage.ModifyData().Resize(inputSerializer.GetSize());
 
@@ -501,7 +521,7 @@ namespace Multiplayer
             return;
         }
 
-        if (auto localEntity = m_entityHandle.GetEntity())
+        if (m_entityHandle.GetEntity())
         {
             DeferRpcMessage(entityRpcMessage);
         }
@@ -510,8 +530,11 @@ namespace Multiplayer
     void EntityReplicator::OnEntityDirtiedEvent()
     {
         AZ_Assert(m_propertyPublisher, "Expected to have a publisher, did we forget to disconnect?");
-        m_propertyPublisher->GenerateRecord();
-        m_replicationManager.AddReplicatorToPendingSend(*this);
+        if (m_propertyPublisher != nullptr)
+        {
+            m_propertyPublisher->GenerateRecord();
+            m_replicationManager.AddReplicatorToPendingSend(*this);
+        }
     }
 
     void EntityReplicator::OnEntityRemovedEvent()

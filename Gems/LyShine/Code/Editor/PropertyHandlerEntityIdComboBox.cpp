@@ -86,8 +86,7 @@ void PropertyHandlerEntityIdComboBox::ConsumeAttribute(PropertyEntityIdComboBoxC
         {
             for (const AZ::Edit::EnumConstant<AZ::EntityId>& constantValue : enumConstantValues)
             {
-                guiEnumValues.push_back();
-                auto& enumValue = guiEnumValues.back();
+                auto& enumValue = guiEnumValues.emplace_back();
                 enumValue.first = constantValue.m_value;
                 enumValue.second = constantValue.m_description;
             }
@@ -156,7 +155,7 @@ PropertyEntityIdComboBoxCtrl::PropertyEntityIdComboBoxCtrl(QWidget* pParent)
 void PropertyEntityIdComboBoxCtrl::setValue(AZ::EntityId value)
 {
     m_pComboBox->blockSignals(true);
-    bool indexWasFound = false;
+    [[maybe_unused]] bool indexWasFound = false;
     for (size_t enumValIndex = 0; enumValIndex < m_enumValues.size(); enumValIndex++)
     {
         if (m_enumValues[enumValIndex].first == value)

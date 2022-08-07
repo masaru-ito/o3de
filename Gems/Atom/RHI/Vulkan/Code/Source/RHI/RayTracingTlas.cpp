@@ -37,7 +37,7 @@ namespace AZ
 
             if (buffers.m_accelerationStructure)
             {
-                vkDestroyAccelerationStructureKHR(device.GetNativeDevice(), buffers.m_accelerationStructure, nullptr);
+                device.GetContext().DestroyAccelerationStructureKHR(device.GetNativeDevice(), buffers.m_accelerationStructure, nullptr);
                 buffers.m_accelerationStructure = nullptr;
             }
 
@@ -60,13 +60,13 @@ namespace AZ
                 // create instances buffer
                 buffers.m_tlasInstancesBuffer = RHI::Factory::Get().CreateBuffer();
                 AZ::RHI::BufferDescriptor tlasInstancesBufferDescriptor;
-                tlasInstancesBufferDescriptor.m_bindFlags = RHI::BufferBindFlags::ShaderRead | RHI::BufferBindFlags::RayTracingAccelerationStructure;
+                tlasInstancesBufferDescriptor.m_bindFlags = RHI::BufferBindFlags::ShaderReadWrite | RHI::BufferBindFlags::RayTracingAccelerationStructure;
                 tlasInstancesBufferDescriptor.m_byteCount = instanceDescsSizeInBytes;
                 
                 AZ::RHI::BufferInitRequest tlasInstancesBufferRequest;
                 tlasInstancesBufferRequest.m_buffer = buffers.m_tlasInstancesBuffer.get();
                 tlasInstancesBufferRequest.m_descriptor = tlasInstancesBufferDescriptor;
-                RHI::ResultCode resultCode = bufferPools.GetTlasInstancesBufferPool()->InitBuffer(tlasInstancesBufferRequest);
+                [[maybe_unused]] RHI::ResultCode resultCode = bufferPools.GetTlasInstancesBufferPool()->InitBuffer(tlasInstancesBufferRequest);
                 AZ_Assert(resultCode == RHI::ResultCode::Success, "failed to create TLAS instances buffer");
                 
                 BufferMemoryView* tlasInstancesMemoryView = static_cast<Buffer*>(buffers.m_tlasInstancesBuffer.get())->GetBufferMemoryView();
@@ -95,7 +95,8 @@ namespace AZ
                     addressInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR;
                     addressInfo.pNext = nullptr;
                     addressInfo.accelerationStructure = blas->GetBuffers().m_accelerationStructure;
-                    mappedData[i].accelerationStructureReference = vkGetAccelerationStructureDeviceAddressKHR(device.GetNativeDevice(), &addressInfo);
+                    mappedData[i].accelerationStructureReference =
+                        device.GetContext().GetAccelerationStructureDeviceAddressKHR(device.GetNativeDevice(), &addressInfo);
 
                     // [GFX TODO][ATOM-5270] Add ray tracing TLAS instance mask support
                     mappedData[i].mask = 0x1;
@@ -107,7 +108,7 @@ namespace AZ
                 addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
                 addressInfo.pNext = nullptr;
                 addressInfo.buffer = tlasInstancesMemoryView->GetNativeBuffer();
-                tlasInstancesGpuAddress = vkGetBufferDeviceAddress(device.GetNativeDevice(), &addressInfo);
+                tlasInstancesGpuAddress = device.GetContext().GetBufferDeviceAddress(device.GetNativeDevice(), &addressInfo);
             }
             else
             {
@@ -117,7 +118,7 @@ namespace AZ
                 addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
                 addressInfo.pNext = nullptr;
                 addressInfo.buffer = static_cast<Buffer*>(descriptor->GetInstancesBuffer().get())->GetBufferMemoryView()->GetNativeBuffer();
-                tlasInstancesGpuAddress = vkGetBufferDeviceAddress(device.GetNativeDevice(), &addressInfo);
+                tlasInstancesGpuAddress = device.GetContext().GetBufferDeviceAddress(device.GetNativeDevice(), &addressInfo);
                 buffers.m_instanceCount = descriptor->GetNumInstancesInBuffer();
             }
             
@@ -141,7 +142,7 @@ namespace AZ
             VkAccelerationStructureBuildSizesInfoKHR buildSizesInfo = {};
             buildSizesInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 
-            vkGetAccelerationStructureBuildSizesKHR(
+            device.GetContext().GetAccelerationStructureBuildSizesKHR(
                 device.GetNativeDevice(),
                 VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
                 &buffers.m_buildInfo,
@@ -160,7 +161,7 @@ namespace AZ
             AZ::RHI::BufferInitRequest scratchBufferRequest;
             scratchBufferRequest.m_buffer = buffers.m_scratchBuffer.get();
             scratchBufferRequest.m_descriptor = scratchBufferDescriptor;
-            RHI::ResultCode resultCode = bufferPools.GetScratchBufferPool()->InitBuffer(scratchBufferRequest);
+            [[maybe_unused]] RHI::ResultCode resultCode = bufferPools.GetScratchBufferPool()->InitBuffer(scratchBufferRequest);
             AZ_Assert(resultCode == RHI::ResultCode::Success, "failed to create TLAS scratch buffer");
             
             BufferMemoryView* scratchMemoryView = static_cast<Buffer*>(buffers.m_scratchBuffer.get())->GetBufferMemoryView();
@@ -189,8 +190,9 @@ namespace AZ
             createInfo.size = buildSizesInfo.accelerationStructureSize;
             createInfo.offset = 0;
             createInfo.buffer = tlasMemoryView->GetNativeBuffer();
-            
-            VkResult vkResult = vkCreateAccelerationStructureKHR(device.GetNativeDevice(), &createInfo, nullptr, &buffers.m_accelerationStructure);
+
+            VkResult vkResult = device.GetContext().CreateAccelerationStructureKHR(
+                device.GetNativeDevice(), &createInfo, nullptr, &buffers.m_accelerationStructure);
             AssertSuccess(vkResult);
             
             buffers.m_buildInfo.dstAccelerationStructure = buffers.m_accelerationStructure;
@@ -199,8 +201,9 @@ namespace AZ
             addressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
             addressInfo.pNext = nullptr;
             addressInfo.buffer = scratchMemoryView->GetNativeBuffer();
-            buffers.m_buildInfo.scratchData.deviceAddress = vkGetBufferDeviceAddress(device.GetNativeDevice(), &addressInfo);
-            
+            buffers.m_buildInfo.scratchData.deviceAddress =
+                device.GetContext().GetBufferDeviceAddress(device.GetNativeDevice(), &addressInfo);
+
             buffers.m_offsetInfo = {};
             buffers.m_offsetInfo.primitiveCount = buffers.m_instanceCount;
 

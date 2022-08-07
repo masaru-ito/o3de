@@ -82,7 +82,8 @@ QTabBar::tab:focus {
 /************** General (Forms) **************/
 
 #formLineEditWidget,
-#formBrowseEditWidget {
+#formBrowseEditWidget, 
+#formComboBoxWidget {
     max-width: 890px;
 }
 
@@ -104,9 +105,17 @@ QTabBar::tab:focus {
     border:1px solid red;
 }
 
+#formFrame:disabled {
+    border:1px solid #959595;
+}
+
 #formFrame QLabel {
     font-size: 13px;
     color: #cccccc;
+}
+
+#formFrame QLabel:disabled {
+    color: #888888;
 }
 
 #formFrame QPushButton {
@@ -119,6 +128,10 @@ QTabBar::tab:focus {
     border:none;
 }
 
+#formFrame QPushButton:disabled {
+    background:transparent url(:/Select_Folder_Disabled.svg) no-repeat center;
+}
+
 #formFrame QLineEdit {
     background-color: rgba(0,0,0,0);
     font-size: 18px;
@@ -128,6 +141,39 @@ QTabBar::tab:focus {
     height: 1em;
     padding-top: -4px;
 }
+
+#formFrame QLineEdit:disabled {
+    color: #AAAAAA
+}
+
+#formFrame QComboBox {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    color:red;
+    min-width:810px;
+    max-width:810px;
+    line-height: 26px;
+    font-size: 18px;
+    height: 26px;
+    padding-left:0px;
+    padding-right:0px;
+}
+
+#formFrame QComboBox::drop-down {
+    subcontrol-origin: padding;
+    subcontrol-position: top right;
+    padding-right:20px;
+    min-width: 24px;
+    max-width: 24px;
+    width:24px;
+}
+
+#formFrame QComboBox QListView::item {
+    line-height: 30px;
+    font-size: 18px;
+    height: 40px;
+}
+
 
 
 #formErrorLabel {
@@ -425,6 +471,14 @@ QTabBar::tab:focus {
     background:rgba(0,0,0,180) url(:/FolderOffset_Hover.svg) no-repeat center center;
 }
 
+#addRemoteProjectButton {
+    background:rgba(0,0,0,180) url(:/Cloud.svg) no-repeat center center;
+}
+#addRemoteProjectButton:hover,
+#addRemoteProjectButton:pressed {
+    background:rgba(0,0,0,180) url(:/Cloud_Hover.svg) no-repeat center center;
+}
+
 #projectsContent > QFrame  {
     margin-top:60px;
 }
@@ -449,14 +503,75 @@ QTabBar::tab:focus {
     border:1px solid #1e70eb;
 }
 
-#projectButton > QFrame  {
-    margin-top:6px;
+#projectButton  {
+    min-width: 210px;
+    max-width: 210px;
+    min-height: 324px;
+    max-height: 324px;
 }
 
-#projectButton > QFrame > QLabel {
+#projectButton > QFrame {
+    margin-top:8px;
+}
+
+#projectButton QLabel {
     font-weight:bold;
     font-size:14px;
     qproperty-indent: 0;
+    margin:0;
+}
+
+#projectButton QLabel#thisEngineLabel, 
+#projectButton QLabel#otherEngineLabel {
+    font-weight:normal;
+    font-size:12px;
+    color: #eee;
+}
+
+#projectButton QLabel#otherEngineLabel {
+    color: #dd0;
+}
+
+#labelButton QPushButton {
+    min-width:140px;
+    max-width:140px;
+    min-height:24px;
+    max-height:24px;
+}
+
+#labelButton #projectActionCancelButton{
+    qproperty-flat: true;
+    border-radius: 3px;
+    margin-left: 1px;
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                            stop: 0 #E32C27, stop: 1.0 #951D21);
+}
+#labelButton #projectActionCancelButton:hover {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                            stop: 0 #FD3129, stop: 1.0 #AF2221);
+}
+#labelButton #projectActionCancelButton:pressed {
+    background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
+                            stop: 0 #951D1F, stop: 1.0 #C92724);
+}
+
+#labelButtonOverlay {
+    background-color: rgba(0,0,0,0.7);
+}
+
+#projectMessageOverlay, #projectSubMessageOverlay {
+    min-width:160px;
+    max-width:160px;
+    min-height:32px;
+    max-height:32px;
+}
+
+#labelButton #projectMessageOverlay {
+    font-size:16px;
+}
+
+#labelButton #projectSubMessageOverlay {
+    font-size:12px;
 }
 
 #projectMenuButton {
@@ -475,19 +590,6 @@ QTabBar::tab:focus {
     max-height:26px;
 }
 
-#projectActionButton, #openEditorButton {
-    min-height:26px;
-    max-height:26px;
-}
-
-#labelButtonOverlay {
-    background-color: rgba(50,50,50,200);
-    min-width:210px;
-    max-width:210px;;
-    min-height:278px;
-    max-height:278px;
-}
-
 QProgressBar {
     border: none;
     background-color: transparent;
@@ -498,7 +600,29 @@ QProgressBar::chunk {
     background-color: #1E70EB;
 }
 
+/************** Remote Projects **************/
+
+#remoteProjectDialogInstructionTitleLabel,
+#remoteProjectDialogDownloadProjectLabel {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#remoteProjectDialogRequirementsTitleLabel,
+#remoteProjectDialogLicensesTitleLabel {
+    font-size: 16px;
+    font-weight: 300;
+}
+
+#addRemoteProjectDialog > QLabel:disabled {
+    color: #AAAAAA;
+}
+
 /************** Gem Catalog **************/
+
+#GemCatalogScreen {
+    background-color: #333333;
+}
 
 #GemCatalogTitle {
     font-size: 18px;
@@ -516,6 +640,19 @@ QProgressBar::chunk {
 
 #GemCatalogCartOverlaySectionLabel {
     font-weight: 600;
+}
+
+#RefreshButton {
+    background:transparent url(:/Refresh.svg) no-repeat center center;
+    qproperty-flat: true;
+    max-width:24px;
+    min-width:24px;
+    max-height:24px;
+    min-height:24px;
+}
+
+#RefreshButton:hover {
+    background:transparent url(:/Refresh_Hover.svg) no-repeat center center;
 }
 
 #gemCatalogMenuButton {
@@ -538,17 +675,8 @@ QProgressBar::chunk {
     background-color: #444444;
 }
 
-#gemCatalogMenuButton {
-    qproperty-flat: true;
-    max-width:36px;
-    min-width:36px;
-    max-height:24px;
-    min-height:24px;
-}
-
-#GemCatalogHeaderLabel {
-    font-size: 12px;
-    color: #FFFFFF;
+#adjustableHeaderWidget QHeaderView::section { 
+    background-color: transparent;
 }
 
 #GemCatalogHeaderShowCountLabel {
@@ -661,6 +789,26 @@ QProgressBar::chunk {
 #GemCatalogFilterCategoryTitle {
     font-size: 12px;
     font-weight: 600;
+    color: #ffffff;
+}
+
+#GemCatalogFilterWidget #FilterByLabel {
+    color: #ffffff;
+}
+#GemCatalogFilterWidget QLabel {
+    color: #ffffff;
+}
+
+#GemCatalogFilterWidget #CountLabel {
+    font-size: 12px; 
+    background-color: #333333; 
+    border-radius: 3px; 
+    color: #94D2FF;
+}
+
+#GemCatalogFilterWidget QCheckbox {
+    color: #ffffff;
+    font-size: 12px;
 }
 
 /************** Engine **************/
@@ -730,15 +878,6 @@ QProgressBar::chunk {
 #gemRepoAddButton:pressed {
     background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,
                             stop: 0 #555555, stop: 1.0 #777777);
-}
-
-#gemRepoHeaderTable {
-    background-color: transparent;
-    max-height: 30px;
-}
-
-#gemRepoListHeader {
-    background-color: transparent;
 }
 
 #gemRepoInspector {

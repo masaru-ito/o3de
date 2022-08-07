@@ -11,6 +11,7 @@
 #include <AzCore/Math/Matrix3x3.h>
 #include <AzCore/Math/Transform.h>
 #include <AzCore/UnitTest/TestTypes.h>
+#include <AZTestShared/Math/MathTestHelpers.h>
 
 using namespace AZ;
 
@@ -316,7 +317,11 @@ namespace UnitTest
         AZ::Quaternion(0.70f, -0.34f, -0.38f, 0.50f),
         AZ::Quaternion(0.00f, 0.00f, -0.28f, 0.96f),
         AZ::Quaternion(0.24f, -0.64f, 0.72f, 0.12f),
-        AZ::Quaternion(-0.66f, 0.62f, 0.42f, 0.06f)
+        AZ::Quaternion(-0.66f, 0.62f, 0.42f, 0.06f),
+        AZ::Quaternion(0.5f, 0.5f, 0.5f, 0.5f),
+        AZ::Quaternion(0.5f, -0.5f, 0.5f, -0.5f),
+        AZ::Quaternion(0.34f, 0.62f, -0.34f, -0.62f),
+        AZ::Quaternion(-0.1f, -0.7f, 0.1f, 0.7f)
     };
 
     TEST_P(QuaternionEulerFixture, EulerOrderCorrect)
@@ -453,7 +458,7 @@ namespace UnitTest
         AZ::Quaternion backFromScaledAxisAngle = AZ::Quaternion::CreateFromScaledAxisAngle(scaledAxisAngle);
 
         // Compare the original quaternion with the one after the conversion.
-        EXPECT_TRUE(testQuat.IsClose(backFromScaledAxisAngle, 1e-6f));
+        EXPECT_THAT(testQuat, IsCloseTolerance(backFromScaledAxisAngle, 1e-6f));
     }
 
     TEST_P(QuaternionScaledAxisAngleConversionFixture, AxisAngleQuatRoundtripTests)
@@ -467,7 +472,7 @@ namespace UnitTest
 
         // Convert the axis-angle back into a quaternion and compare the original quaternion with the one after the conversion.
         const AZ::Quaternion backFromAxisAngle = AZ::Quaternion::CreateFromAxisAngle(axis, angle);
-        EXPECT_TRUE(testQuat.IsClose(backFromAxisAngle, 1e-6f));
+        EXPECT_THAT(testQuat, IsCloseTolerance(backFromAxisAngle, 1e-6f));
     }
 
     TEST_P(QuaternionScaledAxisAngleConversionFixture, CompareAxisAngleConversionTests)
@@ -506,8 +511,20 @@ namespace UnitTest
         }
 
         const AZ::Quaternion backFromAxisAngle = AZ::Quaternion::CreateFromAxisAngle(axisFromScaledResult, angleFromScaledResult);
-        EXPECT_TRUE(testQuat.IsClose(backFromAxisAngle, 1e-6f));
+        EXPECT_THAT(testQuat, IsCloseTolerance(backFromAxisAngle, 1e-6f));
     }
 
     INSTANTIATE_TEST_CASE_P(MATH_Quaternion, QuaternionScaledAxisAngleConversionFixture, ::testing::ValuesIn(RotationRepresentationConversionTestQuats));
+
+    TEST(MATH_Quaternion, ShortestEquivalent)
+    {
+        const AZ::Quaternion testQuat = AZ::Quaternion::CreateRotationX(AZ::Constants::HalfPi * 3.0f);
+
+        AZ::Quaternion absQuat = testQuat;
+        absQuat.ShortestEquivalent();
+        EXPECT_THAT(testQuat.GetShortestEquivalent(), IsCloseTolerance(absQuat, 1e-6f));
+
+        const float angle = absQuat.GetEulerRadians().GetX();
+        EXPECT_THAT(angle, testing::FloatEq(-AZ::Constants::HalfPi));
+    }
 }

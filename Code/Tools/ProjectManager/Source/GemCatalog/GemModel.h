@@ -21,7 +21,7 @@ namespace O3DE::ProjectManager
     class GemModel
         : public QStandardItemModel
     {
-        Q_OBJECT // AUTOMOC
+        Q_OBJECT
 
     public:
         explicit GemModel(QObject* parent = nullptr);
@@ -118,6 +118,7 @@ namespace O3DE::ProjectManager
 
     protected slots: 
         void OnRowsAboutToBeRemoved(const QModelIndex& parent, int first, int last);
+        void OnRowsRemoved(const QModelIndex& parent, int first, int last);
 
     private:
         void GetAllDependingGems(const QModelIndex& modelIndex, QSet<QModelIndex>& inOutGems);

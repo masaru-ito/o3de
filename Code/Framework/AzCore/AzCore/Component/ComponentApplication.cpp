@@ -40,6 +40,7 @@
 #include <AzCore/Settings/SettingsRegistryImpl.h>
 #include <AzCore/Settings/SettingsRegistryMergeUtils.h>
 #include <AzCore/Settings/SettingsRegistryScriptUtils.h>
+#include <AzCore/Settings/SettingsRegistryVisitorUtils.h>
 #include <AzCore/StringFunc/StringFunc.h>
 
 #include <AzCore/Module/Module.h>
@@ -69,6 +70,7 @@
 
 #include <AzCore/Module/Environment.h>
 #include <AzCore/std/string/conversions.h>
+#include <AzCore/std/ranges/ranges_algorithm.h>
 #include <AzCore/Time/TimeSystem.h>
 
 static void PrintEntityName(const AZ::ConsoleCommandContainer& arguments)
@@ -152,8 +154,6 @@ namespace AZ
         m_reservedDebug = 0;
         m_recordingMode = Debug::AllocationRecords::RECORD_STACK_IF_NO_FILE_LINE;
         m_stackRecordLevels = 5;
-        m_useOverrunDetection = false;
-        m_useMalloc = false;
     }
 
     bool AppDescriptorConverter(SerializeContext& serialize, SerializeContext::DataElementNode& node)
@@ -323,9 +323,6 @@ namespace AZ
                 ->Field("blockSize", &Descriptor::m_memoryBlocksByteSize)
                 ->Field("reservedOS", &Descriptor::m_reservedOS)
                 ->Field("reservedDebug", &Descriptor::m_reservedDebug)
-                ->Field("useOverrunDetection", &Descriptor::m_useOverrunDetection)
-                ->Field("useMalloc", &Descriptor::m_useMalloc)
-                ->Field("allocatorRemappings", &Descriptor::m_allocatorRemappings)
                 ->Field("modules", &Descriptor::m_modules)
                 ;
 
@@ -361,8 +358,6 @@ namespace AZ
                         ->Attribute(Edit::Attributes::Step, &Descriptor::m_pageSize)
                     ->DataElement(Edit::UIHandlers::SpinBox, &Descriptor::m_reservedOS, "OS reserved memory", "System memory reserved for OS (used only when 'Allocate all memory at startup' is true)")
                     ->DataElement(Edit::UIHandlers::SpinBox, &Descriptor::m_reservedDebug, "Memory reserved for debugger", "System memory reserved for Debug allocator, like memory tracking (used only when 'Allocate all memory at startup' is true)")
-                    ->DataElement(Edit::UIHandlers::CheckBox, &Descriptor::m_useOverrunDetection, "Use Overrun Detection", "Use the overrun detection memory manager (only available on some platforms, ignored in Release builds)")
-                    ->DataElement(Edit::UIHandlers::CheckBox, &Descriptor::m_useMalloc, "Use Malloc", "Use malloc for memory allocations (for memory debugging only, ignored in Release builds)")
                     ;
             }
         }
@@ -403,10 +398,6 @@ namespace AZ
     ComponentApplication::ComponentApplication()
         : ComponentApplication(0, nullptr)
     {
-        if (Interface<ComponentApplicationRequests>::Get() == nullptr)
-        {
-            Interface<ComponentApplicationRequests>::Register(this);
-        }
     }
 
     ComponentApplication::ComponentApplication(int argC, char** argV)
@@ -425,11 +416,11 @@ namespace AZ
         }
         else
         {
-             azstrcpy(m_commandLineBuffer, AZ_ARRAY_SIZE(m_commandLineBuffer), "no_argv_supplied");
+            azstrcpy(m_commandLineBuffer, AZ_ARRAY_SIZE(m_commandLineBuffer), "no_argv_supplied");
             // use a "valid" value here.  This is because Qt and potentially other third party libraries require
             // that ArgC be 'at least 1' and that (*argV)[0] be a valid pointer to a real null terminated string.
-             m_argC = 1;
-             m_argV = &m_commandLineBufferAddress;
+            m_argC = 1;
+            m_argV = &m_commandLineBufferAddress;
         }
 
         // Create the Event logger if it doesn't exist, otherwise reuse the one registered
@@ -444,12 +435,28 @@ namespace AZ
                 EventLoggerDeleter{ true });
         }
 
+        // we are about to create allocators, so make sure that
+        // the descriptor is filled with at least the defaults:
+        m_descriptor.m_recordingMode = AllocatorManager::Instance().GetDefaultTrackingMode();
+
         // Initializes the OSAllocator and SystemAllocator as soon as possible
         CreateOSAllocator();
         CreateSystemAllocator();
 
         // Now that the Allocators are initialized, the Command Line parameters can be parsed
         m_commandLine.Parse(m_argC, m_argV);
+
+
+        m_nameDictionary = AZStd::make_unique<NameDictionary>();
+
+        // Register the Name Dictionary with the AZ Interface system
+        if (AZ::Interface<AZ::NameDictionary>::Get() == nullptr)
+        {
+            AZ::Interface<AZ::NameDictionary>::Register(m_nameDictionary.get());
+            // Link the deferred names into this Name Dictionary
+            m_nameDictionary->LoadDeferredNames(AZ::Name::GetDeferredHead());
+        }
+
         SettingsRegistryMergeUtils::ParseCommandLine(m_commandLine);
 
         // Create the settings registry and register it with the AZ interface system
@@ -503,12 +510,10 @@ namespace AZ
         // Az Console initialization..
         // note that tests destroy and construct the application over and over, which is not a desirable pattern
         // so we allow the console to construct once and skip destruction / construction on consecutive runs
-        m_console = AZ::Interface<AZ::IConsole>::Get();
-        if (m_console == nullptr)
+        m_console = AZStd::make_unique<AZ::Console>(*m_settingsRegistry);
+        if (AZ::Interface<AZ::IConsole>::Get() == nullptr)
         {
-            m_console = aznew AZ::Console(*m_settingsRegistry);
-            AZ::Interface<AZ::IConsole>::Register(m_console);
-            m_ownsConsole = true;
+            AZ::Interface<AZ::IConsole>::Register(m_console.get());
             m_console->LinkDeferredFunctors(AZ::ConsoleFunctorBase::GetDeferredHead());
             m_settingsRegistryConsoleFunctors = AZ::SettingsRegistryConsoleUtils::RegisterAzConsoleCommands(*m_settingsRegistry, *m_console);
             ComponentApplicationLifecycle::SignalEvent(*m_settingsRegistry, "ConsoleAvailable", R"({})");
@@ -539,12 +544,12 @@ namespace AZ
         m_projectPathChangedHandler = {};
 
         // Delete the AZ::IConsole if it was created by this application instance
-        if (m_ownsConsole)
+        if (AZ::Interface<AZ::IConsole>::Get() == m_console.get())
         {
-            AZ::Interface<AZ::IConsole>::Unregister(m_console);
-            delete m_console;
+            AZ::Interface<AZ::IConsole>::Unregister(m_console.get());
             ComponentApplicationLifecycle::SignalEvent(*m_settingsRegistry, "ConsoleUnavailable", R"({})");
         }
+        m_console.reset();
 
         m_moduleManager.reset();
         // Unregister the global Settings Registry if it is owned by this application instance
@@ -556,6 +561,13 @@ namespace AZ
         }
         m_settingsRegistry.reset();
 
+        // Unregister the Name Dictionary with the AZ Interface system and reset it
+        if (AZ::Interface<AZ::NameDictionary>::Get() == m_nameDictionary.get())
+        {
+            AZ::Interface<AZ::NameDictionary>::Unregister(m_nameDictionary.get());
+        }
+        m_nameDictionary.reset();
+
         // Set AZ::CommandLine to an empty object to clear out allocated memory before the allocators
         // are destroyed
         m_commandLine = {};
@@ -564,10 +576,6 @@ namespace AZ
         m_entityRemovedEvent.DisconnectAllHandlers();
         m_entityActivatedEvent.DisconnectAllHandlers();
         m_entityDeactivatedEvent.DisconnectAllHandlers();
-
-#if !defined(_RELEASE)
-        m_budgetTracker.Reset();
-#endif
 
         DestroyAllocator();
     }
@@ -660,8 +668,6 @@ namespace AZ
         {
             GetSerializeContext()->CreateEditContext();
         }
-
-        NameDictionary::Create();
 
         // Call this and child class's reflects
         ReflectionEnvironment::GetReflectionManager()->Reflect(azrtti_typeid(this), [this](ReflectContext* context) {Reflect(context); });
@@ -758,11 +764,15 @@ namespace AZ
         static_cast<SettingsRegistryImpl*>(m_settingsRegistry.get())->ClearNotifiers();
         static_cast<SettingsRegistryImpl*>(m_settingsRegistry.get())->ClearMergeEvents();
 
+#if !defined(_RELEASE)
+        // the budget tracker must be cleaned up prior to module unloading to ensure
+        // budgets initialized cross boundary are freed properly
+        m_budgetTracker.Reset();
+#endif
+
         // Uninit and unload any dynamic modules.
         m_moduleManager->UnloadModules();
         ComponentApplicationLifecycle::SignalEvent(*m_settingsRegistry, "GemsUnloaded", R"({})");
-
-        NameDictionary::Destroy();
 
         m_systemEntity.reset();
 
@@ -879,7 +889,7 @@ namespace AZ
             AZ::AllocatorInstance<AZ::SystemAllocator>::Create(desc);
             AZ::Debug::Trace::Instance().Init();
 
-            AZ::Debug::AllocationRecords* records = AllocatorInstance<SystemAllocator>::GetAllocator().GetRecords();
+            AZ::Debug::AllocationRecords* records = AllocatorInstance<SystemAllocator>::Get().GetRecords();
             if (records)
             {
                 records->SetMode(m_descriptor.m_recordingMode);
@@ -891,35 +901,6 @@ namespace AZ
 
             m_isSystemAllocatorOwner = true;
         }
-
-#ifndef RELEASE
-        if (m_descriptor.m_useOverrunDetection)
-        {
-            OverrunDetectionSchema::Descriptor overrunDesc(false);
-            s_overrunDetectionSchema = Environment::CreateVariable<OverrunDetectionSchema>(AzTypeInfo<OverrunDetectionSchema>::Name(), overrunDesc);
-            OverrunDetectionSchema* schemaPtr = &s_overrunDetectionSchema.Get();
-
-            AZ::AllocatorManager::Instance().SetOverrideAllocatorSource(schemaPtr);
-        }
-
-        if (m_descriptor.m_useMalloc)
-        {
-            AZ_Printf("Malloc", "WARNING: Malloc override is enabled. Registered allocators will use malloc instead of their normal allocation schemas.");
-            s_mallocSchema = Environment::CreateVariable<MallocSchema>(AzTypeInfo<MallocSchema>::Name());
-            MallocSchema* schemaPtr = &s_mallocSchema.Get();
-
-            AZ::AllocatorManager::Instance().SetOverrideAllocatorSource(schemaPtr);
-        }
-#endif
-
-        AllocatorManager& allocatorManager = AZ::AllocatorManager::Instance();
-
-        for (const auto& remapping : m_descriptor.m_allocatorRemappings)
-        {
-            allocatorManager.AddAllocatorRemapping(remapping.m_from.c_str(), remapping.m_to.c_str());
-        }
-
-        allocatorManager.FinalizeConfiguration();
     }
 
     void ComponentApplication::MergeSettingsToRegistry(SettingsRegistryInterface& registry)
@@ -941,7 +922,7 @@ namespace AZ
         SettingsRegistryMergeUtils::MergeSettingsToRegistry_AddRuntimeFilePaths(registry);
 #endif
         //! Retrieves the list gem targets that the project has load dependencies on
-        //! This populates the /Amazon/Gems/<GemName>/SourcePaths array entries which is required
+        //! This populates the /Amazon/Gems/<GemName> field entries which is required
         //! by the MergeSettingsToRegistry_GemRegistry() function below to locate the gem's root folder
         //! and merge in the gem's registry files.
         //! But when running from a pre-built app from the O3DE SDK(Editor/AssetProcessor), the projects binary
@@ -1253,129 +1234,81 @@ namespace AZ
         // Queries the settings registry to get the list of gem modules to load
         struct GemModuleLoadData
         {
-            AZ::OSString m_gemName;
+            AZ::OSString m_gemModuleName;
             AZStd::vector<AZ::OSString> m_dynamicLibraryPaths;
             bool m_autoLoad{ true };
         };
 
-        struct GemModuleVisitor
-            : AZ::SettingsRegistryInterface::Visitor
+
+        using FixedValueString = SettingsRegistryInterface::FixedValueString;
+        using Type = SettingsRegistryInterface::Type;
+        AZStd::vector<GemModuleLoadData> modulesLoadData;
+        auto GemModuleVisitor = [&settingsRegistry = *m_settingsRegistry, &modulesLoadData]
+        (AZStd::string_view gemRootObjectPath, AZStd::string_view, Type)
         {
-            GemModuleVisitor()
-                : m_gemModuleKey{ AZ::SettingsRegistryInterface::FixedValueString::format("%s/Gems", AZ::SettingsRegistryMergeUtils::OrganizationRootKey) }
-            {}
-
-            AZ::SettingsRegistryInterface::VisitResponse Traverse(AZStd::string_view path, AZStd::string_view,
-                AZ::SettingsRegistryInterface::VisitAction action, AZ::SettingsRegistryInterface::Type) override
+            auto VisitGemObjectFields = [&settingsRegistry, &modulesLoadData](AZStd::string_view jsonPath,
+                AZStd::string_view fieldName, Type)
             {
-                if (action == AZ::SettingsRegistryInterface::VisitAction::Begin)
+                AZStd::string_view gemModuleName = fieldName;
+                auto FindGemModuleLoadEntry = [gemModuleName](const GemModuleLoadData& moduleLoadData)
                 {
-                    // Strip off the last JSON pointer key from the path and if it matches the gem module key then add an entry
-                    // to the ModulesLoadData array
-                    AZStd::optional<AZStd::string_view> gemNameKey = AZ::StringFunc::TokenizeLast(path, "/");
-                    if (path == m_gemModuleKey && gemNameKey && !gemNameKey->empty())
-                    {
-                        AZStd::string_view gemName = gemNameKey.value();
-                        auto FindGemModuleLoadEntry = [gemName](const GemModuleLoadData& moduleLoadData)
-                        {
-                            return gemName == moduleLoadData.m_gemName;
-                        };
+                    return gemModuleName == moduleLoadData.m_gemModuleName;
+                };
 
-                        if (auto foundIt = AZStd::find_if(m_modulesLoadData.begin(), m_modulesLoadData.end(), FindGemModuleLoadEntry);
-                            foundIt == m_modulesLoadData.end())
-                        {
-                            m_modulesLoadData.emplace_back(GemModuleLoadData{ gemName });
-                        }
-                    }
-                }
+                auto foundIt = AZStd::ranges::find_if(modulesLoadData, FindGemModuleLoadEntry);
+                GemModuleLoadData& moduleLoadData = foundIt != modulesLoadData.end()
+                    ? *foundIt
+                    : modulesLoadData.emplace_back(GemModuleLoadData{ gemModuleName });
 
-                return AZ::SettingsRegistryInterface::VisitResponse::Continue;
-            }
-
-            using SettingsRegistryInterface::Visitor::Visit;
-            void Visit(AZStd::string_view path, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type, bool value) override
-            {
                 // By default the auto load option is true
-                // So auto load is turned off if option "AutoLoad" key is bool that is false
-                if (valueName == "AutoLoad" && !value)
+                // So auto load is turned off if option "AutoLoad" key exist and has a value of false
+                auto autoLoadJsonPath = FixedValueString::format("%.*s/AutoLoad",
+                    AZ_STRING_ARG(jsonPath));
+                if (bool autoLoadModule{}; settingsRegistry.Get(autoLoadModule, autoLoadJsonPath) && !autoLoadModule)
                 {
-                    // Strip off the AutoLoad entry from the path
-                    auto autoLoadKey = AZ::StringFunc::TokenizeLast(path, "/");
-                    if (!autoLoadKey)
-                    {
-                        return;
-                    }
-                    if (auto moduleLoadData = FindGemModuleEntry(path); moduleLoadData != nullptr)
-                    {
-                        moduleLoadData->m_autoLoad = value;
-                    }
-                }
-            }
-
-            void Visit(AZStd::string_view path, AZStd::string_view, AZ::SettingsRegistryInterface::Type, AZStd::string_view value) override
-            {
-                // Remove last path segment and check if the key corresponds to the Modules array
-                AZ::StringFunc::TokenizeLast(path, "/");
-                if (path.ends_with("/Modules"))
-                {
-                    // Remove the "Modules" path segment to be at the GemName key
-                    AZ::StringFunc::TokenizeLast(path, "/");
-                    if (auto moduleLoadData = FindGemModuleEntry(path); moduleLoadData != nullptr)
-                    {
-                        // Just use Json Serialization to load all the array elements
-                        moduleLoadData->m_dynamicLibraryPaths.emplace_back(value);
-                    }
-                }
-            }
-
-            AZStd::vector<GemModuleLoadData> m_modulesLoadData;
-            const AZ::SettingsRegistryInterface::FixedValueString m_gemModuleKey;
-
-        private:
-            // Looks upwards one key to locate the GemModuleLoadData
-            GemModuleLoadData* FindGemModuleEntry(AZStd::string_view path)
-            {
-                // Now retrieve the GemName token
-                AZStd::optional<AZStd::string_view> gemNameKey = AZ::StringFunc::TokenizeLast(path, "/");
-                if (gemNameKey && !gemNameKey->empty())
-                {
-                    AZStd::string_view gemName = gemNameKey.value();
-                    auto FindGemModuleLoadEntry = [gemName](const GemModuleLoadData& moduleLoadData)
-                    {
-                        return gemName == moduleLoadData.m_gemName;
-                    };
-
-                    auto foundIt = AZStd::find_if(m_modulesLoadData.begin(), m_modulesLoadData.end(), FindGemModuleLoadEntry);
-                    return foundIt != m_modulesLoadData.end() ? AZStd::addressof(*foundIt) : nullptr;
+                    moduleLoadData.m_autoLoad = false;
                 }
 
-                return nullptr;
-            }
+                // Locate the Module paths within the Gem Target Name object
+                auto AppendDynamicModulePaths = [&settingsRegistry, &moduleLoadData]
+                (AZStd::string_view gemModuleJsonPath, AZStd::string_view, Type)
+                {
+                    if (AZ::IO::Path modulePath; settingsRegistry.Get(modulePath.Native(), gemModuleJsonPath))
+                    {
+                        moduleLoadData.m_dynamicLibraryPaths.emplace_back(AZStd::move(modulePath.Native()));
+                    }
+                };
+                auto gemModulesJsonPath = FixedValueString::format("%.*s/Modules",
+                    AZ_STRING_ARG(jsonPath));
+                AZ::SettingsRegistryVisitorUtils::VisitArray(settingsRegistry, AppendDynamicModulePaths, gemModulesJsonPath);
+            };
+
+            AZ::SettingsRegistryVisitorUtils::VisitField(settingsRegistry, VisitGemObjectFields,
+                FixedValueString::format("%.*s/Targets", AZ_STRING_ARG(gemRootObjectPath)));
         };
 
-        auto gemModuleKey = AZ::SettingsRegistryInterface::FixedValueString::format("%s/Gems", AZ::SettingsRegistryMergeUtils::OrganizationRootKey);
         ModuleDescriptorList gemModules;
+
+        // Visit each ActiveGemsRootKey entry to retrieve the module file names and autoload state
+        AZ::SettingsRegistryVisitorUtils::VisitField(*m_settingsRegistry, GemModuleVisitor,
+            AZ::SettingsRegistryMergeUtils::ActiveGemsRootKey);
+        for (GemModuleLoadData& moduleLoadData : modulesLoadData)
         {
-            GemModuleVisitor moduleVisitor;
-            m_settingsRegistry->Visit(moduleVisitor, gemModuleKey);
-            for (GemModuleLoadData& moduleLoadData : moduleVisitor.m_modulesLoadData)
+            // Add all auto loadable non-asset gems to the list of gem modules to load
+            if (!moduleLoadData.m_autoLoad)
             {
-                // Add all auto loadable non-asset gems to the list of gem modules to load
-                if (!moduleLoadData.m_autoLoad)
+                continue;
+            }
+            for (AZ::OSString& dynamicLibraryPath : moduleLoadData.m_dynamicLibraryPaths)
+            {
+                auto CompareDynamicModuleDescriptor = [&dynamicLibraryPath](const DynamicModuleDescriptor& entry)
                 {
-                    continue;
-                }
-                for (AZ::OSString& dynamicLibraryPath : moduleLoadData.m_dynamicLibraryPaths)
+                    return AZ::IO::PathView(entry.m_dynamicLibraryPath).Stem() == AZ::IO::PathView(dynamicLibraryPath).Stem();
+                };
+                if (auto moduleIter = AZStd::find_if(gemModules.begin(), gemModules.end(), CompareDynamicModuleDescriptor);
+                    moduleIter == gemModules.end())
                 {
-                    auto CompareDynamicModuleDescriptor = [&dynamicLibraryPath](const DynamicModuleDescriptor& entry)
-                    {
-                        return AZ::IO::PathView(entry.m_dynamicLibraryPath).Stem() == AZ::IO::PathView(dynamicLibraryPath).Stem();
-                    };
-                    if (auto moduleIter = AZStd::find_if(gemModules.begin(), gemModules.end(), CompareDynamicModuleDescriptor);
-                        moduleIter == gemModules.end())
-                    {
-                        gemModules.emplace_back(DynamicModuleDescriptor{ AZStd::move(dynamicLibraryPath) });
-                    }
+                    gemModules.emplace_back(DynamicModuleDescriptor{ AZStd::move(dynamicLibraryPath) });
                 }
             }
         }
@@ -1397,16 +1330,25 @@ namespace AZ
 
         }
 
-        // All dynamic modules have been gathered at this point
-        AZ::ModuleManagerRequests::LoadModulesResult loadModuleOutcomes;
-        ModuleManagerRequestBus::BroadcastResult(loadModuleOutcomes, &ModuleManagerRequests::LoadDynamicModules, gemModules, ModuleInitializationSteps::RegisterComponentDescriptors, true);
+        // All dynamic modules have been gathered at this point, and each dynamic module will be up until follow three phases:
+        // 1. Load - the first call is to ensure all dynamic modules are loaded
+        // 2. CreateClass - the second call is to create specific AZ::Module class instances for each dynamic module after its loaded
+        // 3. RegisterComponentDescriptors - the third call is to perform a horizontal register step for each module component descriptos after
+        //    module has been loaded and created
+        for (ModuleInitializationSteps lastStepToPerform : { ModuleInitializationSteps::Load,
+            ModuleInitializationSteps::CreateClass, ModuleInitializationSteps::RegisterComponentDescriptors })
+        {
+            AZ::ModuleManagerRequests::LoadModulesResult loadModuleOutcomes;
+            ModuleManagerRequestBus::BroadcastResult(
+                loadModuleOutcomes, &ModuleManagerRequests::LoadDynamicModules, gemModules, lastStepToPerform, true);
 
 #if defined(AZ_ENABLE_TRACING)
-        for (const auto& loadModuleOutcome : loadModuleOutcomes)
-        {
-            AZ_Error("ComponentApplication", loadModuleOutcome.IsSuccess(), "%s", loadModuleOutcome.GetError().c_str());
-        }
+            for (const auto& loadModuleOutcome : loadModuleOutcomes)
+            {
+                AZ_Error("ComponentApplication", loadModuleOutcome.IsSuccess(), "%s", loadModuleOutcome.GetError().c_str());
+            }
 #endif
+        }
     }
 
     void ComponentApplication::Tick()
