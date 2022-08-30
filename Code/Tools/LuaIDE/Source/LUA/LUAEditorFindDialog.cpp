@@ -103,11 +103,11 @@ namespace LUAEditor
         m_bCancelReplaceSignal = false;
         m_bReplaceThreadRunning = false;
 
-        connect(m_gui->searchWhereComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), this, &LUAEditorFindDialog::OnSearchWhereChanged);
+        connect(m_gui->searchWhereComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(OnSearchWhereChanged(int)));
 
-        connect(this, &LUAEditorFindDialog::triggerFindInFilesNext, this, &LUAEditorFindDialog::FindInFilesNext, Qt::QueuedConnection);
-        connect(this, &LUAEditorFindDialog::triggerReplaceInFilesNext, this, &LUAEditorFindDialog::ReplaceInFilesNext, Qt::QueuedConnection);
-        connect(this, &LUAEditorFindDialog::triggerFindNextInView, this, &LUAEditorFindDialog::FindNextInView, Qt::QueuedConnection);
+        connect(this, SIGNAL(triggerFindInFilesNext(int)), this, SLOT(FindInFilesNext(int)), Qt::QueuedConnection);
+        connect(this, SIGNAL(triggerReplaceInFilesNext()), this, SLOT(ReplaceInFilesNext()), Qt::QueuedConnection);
+        connect(this, SIGNAL(triggerFindNextInView(LUAViewWidget::FindOperation*, LUAViewWidget*, QListWidget*)), this, SLOT(FindNextInView(LUAViewWidget::FindOperation*, LUAViewWidget*, QListWidget*)), Qt::QueuedConnection);
 
         QString stylesheet(R"(QLabel[LUAEditorFindDialogLabel="true"],QGroupBox,QCheckBox,QRadioButton,QPushButton
                          {
@@ -1113,7 +1113,7 @@ namespace LUAEditor
                 if (!m_RIFData.m_dReplaceProcessList.empty())
                 {
                     PostReplaceOn();
-                    QTimer::singleShot(0, this, &LUAEditorFindDialog::ProcessReplaceItems);
+                    QTimer::singleShot(0, this, SLOT(ProcessReplaceItems()));
                 }
                 else
                 {
@@ -1125,7 +1125,7 @@ namespace LUAEditor
                 return;
             }
 
-            QTimer::singleShot(1, this, &LUAEditorFindDialog::ReplaceInFilesNext);
+            QTimer::singleShot(1, this, SLOT(ReplaceInFilesNext()));
         }
     }
 
@@ -1166,7 +1166,7 @@ namespace LUAEditor
             // dAssetInfo[0].m_databaseAsset.m_assetId,
             // AZ::ScriptAsset::StaticAssetType());
 
-            QTimer::singleShot(0, this, &LUAEditorFindDialog::ProcessReplaceItems);
+            QTimer::singleShot(0, this, SLOT(ProcessReplaceItems()));
         }
         else
         {
@@ -1192,7 +1192,7 @@ namespace LUAEditor
             // only start iterating the first time:
             if (wasEmpty)
             {
-                QTimer::singleShot(0, this, &LUAEditorFindDialog::OnReplaceInViewIterate);
+                QTimer::singleShot(0, this, SLOT(OnReplaceInViewIterate()));
             }
         }
     }
@@ -1226,7 +1226,7 @@ namespace LUAEditor
 
         if (!m_PendingReplaceInViewOperations.empty())
         {
-            QTimer::singleShot(0, this, &LUAEditorFindDialog::OnReplaceInViewIterate);
+            QTimer::singleShot(0, this, SLOT(OnReplaceInViewIterate()));
         }
 
         if ((m_PendingReplaceInViewOperations.empty()) && (m_RIFData.m_waitingForOpenToComplete.empty()))
@@ -1335,7 +1335,7 @@ namespace LUAEditor
             {
                 BusyOn();
                 m_PendingReplaceInViewOperations.push_back(pLUAEditorMainWindow->GetCurrentView());
-                QTimer::singleShot(0, this, &LUAEditorFindDialog::OnReplaceInViewIterate);
+                QTimer::singleShot(0, this, SLOT(OnReplaceInViewIterate()));
             }
             else if (theMode == AllOpenDocs || theMode == AllLUAAssets)
             {
@@ -1346,7 +1346,7 @@ namespace LUAEditor
                 {
                     m_PendingReplaceInViewOperations.push_back(*openViewIter);
                 }
-                QTimer::singleShot(0, this, &LUAEditorFindDialog::OnReplaceInViewIterate);
+                QTimer::singleShot(0, this, SLOT(OnReplaceInViewIterate()));
 
                 if (theMode == AllLUAAssets)
                 {

@@ -7,7 +7,6 @@
  */
 #include <AzCore/IO/SystemFile.h>
 #include <AzCore/std/string/string.h>
-#include <AzCore/IO/Path/Path.h>
 #include <AzCore/UnitTest/TestTypes.h>
 #include <AZTestShared/Utils/Utils.h>
 
@@ -138,7 +137,7 @@ namespace UnitTest
 
     TEST_F(SystemFileTest, Open_BadFileNames_DoesNotCrash)
     {
-
+        
         AZStd::string randomJunkName;
 
         randomJunkName.resize(128, '\0');
@@ -174,8 +173,8 @@ namespace UnitTest
     {
         AZ::Test::ScopedAutoTempDirectory tempDir;
 
-        auto srcFile = tempDir.Resolve("SystemFileTest_Source.txt");
-        auto redirectFile = tempDir.Resolve("SystemFileTest_Redirected.txt");
+        AZStd::string srcFile = tempDir.Resolve("SystemFileTest_Source.txt");
+        AZStd::string redirectFile = tempDir.Resolve("SystemFileTest_Redirected.txt");
         {
             AZ::IO::SystemFile oFile;
             oFile.Open(srcFile.c_str(), AZ::IO::SystemFile::SF_OPEN_CREATE);
@@ -215,7 +214,7 @@ namespace UnitTest
                 PosixInternal::PermissionModeFlags::Read | PosixInternal::PermissionModeFlags::Write);
 
             FileDescriptorRedirector redirector(sourceFd);
-            redirector.RedirectTo(redirectFile.Native(), FileDescriptorRedirector::Mode::Create);
+            redirector.RedirectTo(redirectFile, FileDescriptorRedirector::Mode::Create);
             PosixInternal::Write(sourceFd, contentInRedirect, sizeof(contentInRedirect));
             PosixInternal::Close(sourceFd);
         }
@@ -229,7 +228,7 @@ namespace UnitTest
                 PosixInternal::PermissionModeFlags::Read | PosixInternal::PermissionModeFlags::Write);
 
             FileDescriptorRedirector redirector(sourceFd);
-            redirector.RedirectTo(redirectFile.Native(), FileDescriptorRedirector::Mode::Create);
+            redirector.RedirectTo(redirectFile, FileDescriptorRedirector::Mode::Create);
             redirector.Reset();
             PosixInternal::Write(sourceFd, contentInSource, sizeof(contentInSource));
             PosixInternal::Close(sourceFd);
@@ -244,7 +243,7 @@ namespace UnitTest
                 PosixInternal::PermissionModeFlags::Read | PosixInternal::PermissionModeFlags::Write);
 
             FileDescriptorRedirector redirector(sourceFd);
-            redirector.RedirectTo(redirectFile.Native(), FileDescriptorRedirector::Mode::Create);
+            redirector.RedirectTo(redirectFile, FileDescriptorRedirector::Mode::Create);
             redirector.WriteBypassingRedirect(contentInSource, sizeof(contentInSource));
             PosixInternal::Close(sourceFd);
         }

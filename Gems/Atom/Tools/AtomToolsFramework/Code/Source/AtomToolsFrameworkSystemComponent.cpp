@@ -36,7 +36,6 @@ namespace AtomToolsFramework
         if (auto serialize = azrtti_cast<AZ::SerializeContext*>(context))
         {
             serialize->RegisterGenericType<AZStd::unordered_map<AZStd::string, bool>>();
-            serialize->RegisterGenericType<AZStd::map<AZStd::string, AZStd::vector<AZStd::string>>>();
 
             serialize->Class<AtomToolsFrameworkSystemComponent, AZ::Component>()
                 ->Version(0)

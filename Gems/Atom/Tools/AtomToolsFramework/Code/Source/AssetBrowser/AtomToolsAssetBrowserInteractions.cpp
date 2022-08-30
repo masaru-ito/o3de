@@ -99,9 +99,18 @@ namespace AtomToolsFramework
                 }
             });
 
-        QMenu* scriptsMenu = menu->addMenu(QObject::tr("Python Scripts"));
-        AZStd::vector<AZStd::string_view> pythonArgs{ entry->GetFullPath() };
-        AddRegisteredScriptToMenu(scriptsMenu, "/O3DE/AtomToolsFramework/AssetBrowser/ContextMenuScripts", pythonArgs);
+        menu->addAction("Run Python on File...", [caller, entry]()
+            {
+                const QString script = QFileDialog::getOpenFileName(
+                    caller, QObject::tr("Run Script"), QString(AZ::Utils::GetProjectPath().c_str()), QString("*.py"));
+                if (!script.isEmpty())
+                {
+                    AZStd::vector<AZStd::string_view> pythonArgs{ entry->GetFullPath() };
+                    AzToolsFramework::EditorPythonRunnerRequestBus::Broadcast(
+                        &AzToolsFramework::EditorPythonRunnerRequestBus::Events::ExecuteByFilenameWithArgs, script.toUtf8().constData(),
+                        pythonArgs);
+                }
+            });
     }
 
     void AtomToolsAssetBrowserInteractions::AddContextMenuActionsForFolderEntries(

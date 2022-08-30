@@ -13,8 +13,9 @@ import json
 import logging
 import os
 import pathlib
+import hashlib
 
-from o3de import validation, utils, repo
+from o3de import validation, utils
 
 logger = logging.getLogger('o3de.manifest')
 logging.basicConfig(format=utils.LOG_FORMAT)
@@ -597,9 +598,12 @@ def get_repo_json_data(repo_uri: str) -> dict or None:
 
 
 def get_repo_path(repo_uri: str, cache_folder: str or pathlib.Path = None) -> pathlib.Path:
+    if not cache_folder:
+        cache_folder = get_o3de_cache_folder()
+
     repo_manifest = f'{repo_uri}/repo.json'
-    cache_file, _ = repo.get_cache_file_uri(repo_manifest)
-    return cache_file
+    repo_sha256 = hashlib.sha256(repo_manifest.encode())
+    return cache_folder / str(repo_sha256.hexdigest() + '.json')
 
 
 def get_registered(engine_name: str = None,

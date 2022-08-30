@@ -217,7 +217,6 @@ namespace Multiplayer
         friend class HierarchyBenchmarkBase;
         friend class MultiplayerSystemTests;
         friend class NetworkEntityTests;
-        friend class LocalPredictionPlayerInputTests;
     };
 
     bool NetworkRoleHasController(NetEntityRole networkRole);

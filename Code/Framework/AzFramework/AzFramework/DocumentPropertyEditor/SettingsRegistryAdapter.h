@@ -29,7 +29,7 @@ namespace AZ::DocumentPropertyEditor
 
         // Recurses through the Settings Registry associated with the supplied Settings Registry Origin Tracker
         // populates PropertyEditorNodes
-        bool BuildField(AZStd::string_view path, AZStd::string_view fieldName, AZ::SettingsRegistryInterface::SettingsType type);
+        bool BuildField(AZStd::string_view path, AZStd::string_view fieldName, AZ::SettingsRegistryInterface::Type type);
 
         SettingsRegistryOriginTracker* GetSettingsRegistryOriginTracker();
         const SettingsRegistryOriginTracker* GetSettingsRegistryOriginTracker() const;

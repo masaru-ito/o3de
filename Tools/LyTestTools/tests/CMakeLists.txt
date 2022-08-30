@@ -31,14 +31,7 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS AND PAL_TRAIT_BUILD_TESTS_SUPPORTED AND AutomatedT
             AutomatedTesting.GameLauncher
             AutomatedTesting.ServerLauncher
             AutomatedTesting.Assets
-        COMPONENT TestTools
-    )
-
-    ly_add_pytest(
-        NAME LyTestTools_Integ_Codeowners
-        PATH ${CMAKE_CURRENT_LIST_DIR}/integ/test_o3de_codeowners.py
-        TEST_SUITE smoke
-        COMPONENT TestTools
+            COMPONENT TestTools
     )
 
     ly_add_pytest(
@@ -68,6 +61,6 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS AND PAL_TRAIT_BUILD_TESTS_SUPPORTED AND AutomatedT
             AssetProcessor
             AutomatedTesting.GameLauncher
             AutomatedTesting.Assets
-        COMPONENT TestTools
+            COMPONENT TestTools
     )
 endif()

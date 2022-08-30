@@ -75,36 +75,34 @@ namespace Multiplayer
     {
         uint32_t frameId = static_cast<uint32_t>(Multiplayer::GetNetworkTime()->GetHostFrameId());
 
-        if (AzPhysics::RigidBody* rigidBody = m_physicsRigidBodyComponent->GetRigidBody())
+        AzPhysics::RigidBody* rigidBody = m_physicsRigidBodyComponent->GetRigidBody();
+        rigidBody->SetFrameId(frameId);
+
+        AZ::Transform rewoundTransform;
+        const AZ::Transform& targetTransform = m_transform.Get();
+        const float blendFactor = Multiplayer::GetNetworkTime()->GetHostBlendFactor();
+        if (blendFactor < 1.f)
         {
-            rigidBody->SetFrameId(frameId);
+            // If a blend factor was supplied, interpolate the transform appropriately
+            const AZ::Transform& previousTransform = m_transform.GetPrevious();
+            rewoundTransform.SetRotation(previousTransform.GetRotation().Slerp(targetTransform.GetRotation(), blendFactor));
+            rewoundTransform.SetTranslation(previousTransform.GetTranslation().Lerp(targetTransform.GetTranslation(), blendFactor));
+            rewoundTransform.SetUniformScale(AZ::Lerp(previousTransform.GetUniformScale(), targetTransform.GetUniformScale(), blendFactor));
+        }
+        else
+        {
+            rewoundTransform = m_transform.Get();
+        }
+        const AZ::Transform& physicsTransform = rigidBody->GetTransform();
 
-            AZ::Transform rewoundTransform;
-            const AZ::Transform& targetTransform = m_transform.Get();
-            const float blendFactor = Multiplayer::GetNetworkTime()->GetHostBlendFactor();
-            if (blendFactor < 1.f)
-            {
-                // If a blend factor was supplied, interpolate the transform appropriately
-                const AZ::Transform& previousTransform = m_transform.GetPrevious();
-                rewoundTransform.SetRotation(previousTransform.GetRotation().Slerp(targetTransform.GetRotation(), blendFactor));
-                rewoundTransform.SetTranslation(previousTransform.GetTranslation().Lerp(targetTransform.GetTranslation(), blendFactor));
-                rewoundTransform.SetUniformScale(AZ::Lerp(previousTransform.GetUniformScale(), targetTransform.GetUniformScale(), blendFactor));
-            }
-            else
-            {
-                rewoundTransform = m_transform.Get();
-            }
-            const AZ::Transform& physicsTransform = rigidBody->GetTransform();
+        // Don't call SetLocalPose unless the transforms are actually different
+        const AZ::Vector3 positionDelta = physicsTransform.GetTranslation() - rewoundTransform.GetTranslation();
+        const AZ::Quaternion orientationDelta = physicsTransform.GetRotation() - rewoundTransform.GetRotation();
 
-            // Don't call SetLocalPose unless the transforms are actually different
-            const AZ::Vector3 positionDelta = physicsTransform.GetTranslation() - rewoundTransform.GetTranslation();
-            const AZ::Quaternion orientationDelta = physicsTransform.GetRotation() - rewoundTransform.GetRotation();
-
-            if ((positionDelta.GetLengthSq() >= bg_RewindPositionTolerance) ||
-                (orientationDelta.GetLengthSq() >= bg_RewindOrientationTolerance))
-            {
-                rigidBody->SetTransform(rewoundTransform);
-            }
+        if ((positionDelta.GetLengthSq() >= bg_RewindPositionTolerance) ||
+            (orientationDelta.GetLengthSq() >= bg_RewindOrientationTolerance))
+        {
+            rigidBody->SetTransform(rewoundTransform);
         }
     }
 
@@ -120,12 +118,10 @@ namespace Multiplayer
         GetParent().m_physicsRigidBodyComponent->SetKinematic(false);
         if (IsAuthority())
         {
-            if (AzPhysics::RigidBody* rigidBody = GetParent().m_physicsRigidBodyComponent->GetRigidBody())
-            {
-                rigidBody->SetLinearVelocity(GetLinearVelocity());
-                rigidBody->SetAngularVelocity(GetAngularVelocity());
-                GetEntity()->GetTransform()->BindTransformChangedEventHandler(m_transformChangedHandler);
-            }
+            AzPhysics::RigidBody* rigidBody = GetParent().m_physicsRigidBodyComponent->GetRigidBody();
+            rigidBody->SetLinearVelocity(GetLinearVelocity());
+            rigidBody->SetAngularVelocity(GetAngularVelocity());
+            GetEntity()->GetTransform()->BindTransformChangedEventHandler(m_transformChangedHandler);
         }
     }
 
@@ -141,18 +137,14 @@ namespace Multiplayer
         const AZ::Vector3& worldPoint
     )
     {
-        if (AzPhysics::RigidBody* rigidBody = GetParent().m_physicsRigidBodyComponent->GetRigidBody())
-        {
-            rigidBody->ApplyLinearImpulseAtWorldPoint(impulse, worldPoint);
-        }
+        AzPhysics::RigidBody* rigidBody = GetParent().m_physicsRigidBodyComponent->GetRigidBody();
+        rigidBody->ApplyLinearImpulseAtWorldPoint(impulse, worldPoint);
     }
 
     void NetworkRigidBodyComponentController::OnTransformUpdate()
     {
-        if (AzPhysics::RigidBody* rigidBody = GetParent().m_physicsRigidBodyComponent->GetRigidBody())
-        {
-            SetLinearVelocity(rigidBody->GetLinearVelocity());
-            SetAngularVelocity(rigidBody->GetAngularVelocity());
-        }
+        AzPhysics::RigidBody* rigidBody = GetParent().m_physicsRigidBodyComponent->GetRigidBody();
+        SetLinearVelocity(rigidBody->GetLinearVelocity());
+        SetAngularVelocity(rigidBody->GetAngularVelocity());
     }
 } // namespace Multiplayer

@@ -46,23 +46,14 @@ namespace AssetProcessor
 
         AZ::SettingsRegistryImpl registry;
         ASSERT_TRUE(registry.MergeSettings(json, AZ::SettingsRegistryInterface::Format::JsonMergePatch));
-        AZStd::string registryOutputBuffer;
+        rapidjson::StringBuffer registryOutputBuffer;
         AZStd::vector<AZStd::string> excludes;
-        AZ::SettingsRegistryMergeUtils::DumperSettings dumperSettings;
-        dumperSettings.m_includeFilter = [&excludes](AZStd::string_view jsonKeyPath)
-        {
-            auto ExcludeField = [&jsonKeyPath](AZStd::string_view excludePath)
-            {
-                return AZ::SettingsRegistryMergeUtils::IsPathDescendantOrEqual(excludePath, jsonKeyPath);
-            };
-            // Include a path only if it is not equal or a suffix of any paths of the exclude vector
-            return AZStd::ranges::find_if(excludes, ExcludeField) == AZStd::ranges::end(excludes);
-        };
-        AZ::IO::ByteContainerStream byteStream(&registryOutputBuffer);
-        ASSERT_TRUE(AZ::SettingsRegistryMergeUtils::DumpSettingsRegistryToStream(registry, "/TestValues", byteStream, dumperSettings));
+        SettingsRegistryBuilder::SettingsExporter exporter(registryOutputBuffer, excludes);
+        registry.Visit(exporter, "/TestValues");
+        ASSERT_TRUE(exporter.Finalize());
 
-        EXPECT_EQ(jsonOutputBuffer.GetLength(), registryOutputBuffer.size());
-        EXPECT_STREQ(jsonOutputBuffer.GetString(), registryOutputBuffer.c_str());
+        EXPECT_EQ(jsonOutputBuffer.GetLength(), registryOutputBuffer.GetLength());
+        EXPECT_STREQ(jsonOutputBuffer.GetString(), registryOutputBuffer.GetString());
     }
 
     TEST_F(SettingsRegistryBuilderTest, SettingsExporter_FilterOutSection_FieldNotInOutput)
@@ -84,24 +75,15 @@ namespace AssetProcessor
 
         AZ::SettingsRegistryImpl registry;
         ASSERT_TRUE(registry.MergeSettings(json, AZ::SettingsRegistryInterface::Format::JsonMergePatch));
-        AZStd::string registryOutputBuffer;
+        rapidjson::StringBuffer registryOutputBuffer;
         AZStd::vector<AZStd::string> excludes;
         excludes.push_back("/TestValues/A/B");
-        AZ::SettingsRegistryMergeUtils::DumperSettings dumperSettings;
-        dumperSettings.m_includeFilter = [&excludes](AZStd::string_view jsonKeyPath)
-        {
-            auto ExcludeField = [&jsonKeyPath](AZStd::string_view excludePath)
-            {
-                return AZ::SettingsRegistryMergeUtils::IsPathDescendantOrEqual(excludePath, jsonKeyPath);
-            };
-            // Include a path only if it is not equal or a suffix of any paths of the exclude vector
-            return AZStd::ranges::find_if(excludes, ExcludeField) == AZStd::ranges::end(excludes);
-        };
-        AZ::IO::ByteContainerStream byteStream(&registryOutputBuffer);
-        ASSERT_TRUE(AZ::SettingsRegistryMergeUtils::DumpSettingsRegistryToStream(registry, "/TestValues", byteStream, dumperSettings));
+        SettingsRegistryBuilder::SettingsExporter exporter(registryOutputBuffer, excludes);
+        registry.Visit(exporter, "/TestValues");
+        ASSERT_TRUE(exporter.Finalize());
 
         rapidjson::Document document;
-        document.Parse(registryOutputBuffer.c_str(), registryOutputBuffer.size());
+        document.Parse(registryOutputBuffer.GetString(), registryOutputBuffer.GetLength());
         ASSERT_FALSE(document.HasParseError());
 
         auto it = document.FindMember("A");
@@ -119,23 +101,14 @@ namespace AssetProcessor
 
         AZ::SettingsRegistryImpl registry;
         ASSERT_TRUE(registry.MergeSettings(json, AZ::SettingsRegistryInterface::Format::JsonPatch));
-        AZStd::string registryOutputBuffer;
+        rapidjson::StringBuffer registryOutputBuffer;
         AZStd::vector<AZStd::string> excludes;
-        AZ::SettingsRegistryMergeUtils::DumperSettings dumperSettings;
-        dumperSettings.m_includeFilter = [&excludes](AZStd::string_view jsonKeyPath)
-        {
-            auto ExcludeField = [&jsonKeyPath](AZStd::string_view excludePath)
-            {
-                return AZ::SettingsRegistryMergeUtils::IsPathDescendantOrEqual(excludePath, jsonKeyPath);
-            };
-            // Include a path only if it is not equal or a suffix of any paths of the exclude vector
-            return AZStd::ranges::find_if(excludes, ExcludeField) == AZStd::ranges::end(excludes);
-        };
-        AZ::IO::ByteContainerStream byteStream(&registryOutputBuffer);
-        ASSERT_TRUE(AZ::SettingsRegistryMergeUtils::DumpSettingsRegistryToStream(registry, "/TestValues", byteStream, dumperSettings));
+        SettingsRegistryBuilder::SettingsExporter exporter(registryOutputBuffer, excludes);
+        registry.Visit(exporter, "/TestValues");
+        ASSERT_TRUE(exporter.Finalize());
 
         rapidjson::Document document;
-        document.Parse(registryOutputBuffer.c_str(), registryOutputBuffer.size());
+        document.Parse(registryOutputBuffer.GetString(), registryOutputBuffer.GetLength());
         ASSERT_FALSE(document.HasParseError());
 
         auto it = document.FindMember("Null");
@@ -159,24 +132,14 @@ namespace AssetProcessor
         AZ::SettingsRegistryImpl registrySecond;
         ASSERT_TRUE(registrySecond.MergeSettings(jsonSecond, AZ::SettingsRegistryInterface::Format::JsonMergePatch));
 
-        AZStd::string registryOutputBuffer;
+        rapidjson::StringBuffer registryOutputBuffer;
         AZStd::vector<AZStd::string> excludes;
-        AZ::SettingsRegistryMergeUtils::DumperSettings dumperSettings;
-        dumperSettings.m_includeFilter = [&excludes](AZStd::string_view jsonKeyPath)
-        {
-            auto ExcludeField = [&jsonKeyPath](AZStd::string_view excludePath)
-            {
-                return AZ::SettingsRegistryMergeUtils::IsPathDescendantOrEqual(excludePath, jsonKeyPath);
-            };
-            // Include a path only if it is not equal or a suffix of any paths of the exclude vector
-            return AZStd::ranges::find_if(excludes, ExcludeField) == AZStd::ranges::end(excludes);
-        };
-        AZ::IO::ByteContainerStream byteStream(&registryOutputBuffer);
-        ASSERT_TRUE(AZ::SettingsRegistryMergeUtils::DumpSettingsRegistryToStream(registryFirst, "/TestValues", byteStream, dumperSettings));
-
-        registryOutputBuffer.clear();
-        byteStream.Seek(0, AZ::IO::GenericStream::SeekMode::ST_SEEK_BEGIN);
-        ASSERT_TRUE(AZ::SettingsRegistryMergeUtils::DumpSettingsRegistryToStream(registrySecond, "/TestValues", byteStream, dumperSettings));
+        SettingsRegistryBuilder::SettingsExporter exporter(registryOutputBuffer, excludes);
+        registryFirst.Visit(exporter, "/TestValues");
+        ASSERT_TRUE(exporter.Finalize());
+        registryOutputBuffer.Clear();
+        exporter.Reset(registryOutputBuffer);
+        registrySecond.Visit(exporter, "/TestValues");
 
         rapidjson::Document document;
         document.Parse(jsonSecond);
@@ -185,7 +148,7 @@ namespace AssetProcessor
         rapidjson::Writer<rapidjson::StringBuffer> writer(jsonOutputBuffer);
         document.FindMember("TestValues")->value.Accept(writer);
 
-        EXPECT_EQ(jsonOutputBuffer.GetLength(), registryOutputBuffer.size());
-        EXPECT_STREQ(jsonOutputBuffer.GetString(), registryOutputBuffer.c_str());
+        EXPECT_EQ(jsonOutputBuffer.GetLength(), registryOutputBuffer.GetLength());
+        EXPECT_STREQ(jsonOutputBuffer.GetString(), registryOutputBuffer.GetString());
     }
 } // namespace AssetProcessor

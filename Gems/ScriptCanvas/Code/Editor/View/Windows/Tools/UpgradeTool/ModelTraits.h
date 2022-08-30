@@ -47,7 +47,6 @@ namespace ScriptCanvasEditor
 
             AZStd::function<Filter(const SourceHandle&)> filter;
             bool reportFilteredGraphs = false;
-            bool onlyIncludeLegacyXML = false;
         };
 
         struct ScanResult

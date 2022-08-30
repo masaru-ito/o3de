@@ -19,181 +19,180 @@
 #include <AzCore/Settings/SettingsRegistryImpl.h>
 #include <AzCore/Settings/SettingsRegistryMergeUtils.h>
 #include <Tests/FileIOBaseTestTypes.h>
+#include <Utils/Utils.h>
 
+constexpr int NumTestAssets = 10;
+constexpr char ProjectName[] = "UnitTest";
 
-namespace UnitTest
+class MockValidationComponent : public AssetValidation::AssetValidationSystemComponent
+    , public AZ::Data::AssetCatalogRequestBus::Handler
 {
-    constexpr int NumTestAssets = 10;
-    constexpr char ProjectName[] = "UnitTest";
+public:
 
-    class MockValidationComponent
-        : public AssetValidation::AssetValidationSystemComponent
-        , public AZ::Data::AssetCatalogRequestBus::Handler
+    MockValidationComponent()
     {
-    public:
-
-        MockValidationComponent()
+        for (int i = 0; i < NumTestAssets; ++i)
         {
-            for (int i = 0; i < NumTestAssets; ++i)
-            {
-                m_assetIds[i] = AZ::Data::AssetId(AZ::Uuid::CreateRandom(), 0);
-            }
-            AZ::Data::AssetCatalogRequestBus::Handler::BusConnect();
-            AssetValidation::AssetValidationSystemComponent::Activate();
+            m_assetIds[i] = AZ::Data::AssetId(AZ::Uuid::CreateRandom(), 0);
         }
+        AZ::Data::AssetCatalogRequestBus::Handler::BusConnect();
+        AssetValidation::AssetValidationSystemComponent::Activate();
+    }
 
-        ~MockValidationComponent()
-        {
-            AssetValidation::AssetValidationSystemComponent::Deactivate();
-            AZ::Data::AssetCatalogRequestBus::Handler::BusDisconnect();
-        }
-
-        void SeedMode() override
-        {
-            AssetValidation::AssetValidationSystemComponent::SeedMode();
-        }
-
-        bool IsKnownAsset(const char* fileName) override
-        {
-            return AssetValidation::AssetValidationSystemComponent::IsKnownAsset(fileName);
-        }
-
-        bool AddSeedAssetId(AZ::Data::AssetId assetId, AZ::u32 sourceId) override
-        {
-            return AssetValidation::AssetValidationSystemComponent::AddSeedAssetId(assetId, sourceId);
-        }
-
-        AZ::Data::AssetInfo GetAssetInfoById(const AZ::Data::AssetId& id) override
-        {
-            AZ::Data::AssetInfo result;
-
-            for (int slotNum = 0; slotNum < NumTestAssets; ++slotNum)
-            {
-                const AZ::Data::AssetId& assetId = m_assetIds[slotNum];
-                if (assetId == id)
-                {
-                    result.m_assetId = id;
-                    // Internal paths should be lower cased as from the cache
-                    result.m_relativePath = AZStd::string::format("assetpath%d", slotNum);
-                    break;
-                }
-            }
-            return result;
-        }
-
-        AZ::Outcome<AZStd::vector<AZ::Data::ProductDependency>, AZStd::string> GetAllProductDependencies(const AZ::Data::AssetId& id) override
-        {
-            AZStd::vector<AZ::Data::ProductDependency> dependencyList;
-            bool foundAsset{ false };
-            for (const AZ::Data::AssetId& assetId : m_assetIds)
-            {
-                if (assetId == id)
-                {
-                    foundAsset = true;
-                }
-                else if (foundAsset)
-                {
-                    AZ::Data::ProductDependency thisDependency;
-                    thisDependency.m_assetId = assetId;
-                    dependencyList.emplace_back(AZ::Data::ProductDependency(assetId, {}));
-                }
-            }
-            if (dependencyList.size())
-            {
-                return AZ::Success(dependencyList);
-            }
-            return AZ::Failure(AZStd::string("Asset not found"));
-        }
-
-        bool TestAddSeedsFor(const AzFramework::AssetSeedList& seedList, AZ::u32 sourceId)
-        {
-            return AddSeedsFor(seedList, sourceId);
-        }
-
-        bool TestRemoveSeedsFor(const AzFramework::AssetSeedList& seedList, AZ::u32 sourceId)
-        {
-            return RemoveSeedsFor(seedList, sourceId);
-        }
-
-        bool TestAddSeedList(const char* seedListName)
-        {
-            return AddSeedList(seedListName);
-        }
-
-        bool TestRemoveSeedList(const char* seedListName)
-        {
-            return RemoveSeedList(seedListName);
-        }
-
-        AZ::Outcome<AzFramework::AssetSeedList, AZStd::string> LoadSeedList(const char* fileName, AZStd::string& seedFilepath) override
-        {
-            if (m_validSeedPath == fileName)
-            {
-                seedFilepath = fileName;
-                return AZ::Success(m_validSeedList);
-            }
-            return AZ::Failure(AZStd::string("Invalid List"));
-        }
-
-        AzFramework::AssetSeedList m_validSeedList;
-        AZStd::string m_validSeedPath;
-        AZ::Data::AssetId m_assetIds[NumTestAssets];
-    };
-
-    struct AssetValidationTest
-        : UnitTest::ScopedAllocatorSetupFixture
-        , UnitTest::SetRestoreFileIOBaseRAII
-        , AzFramework::ApplicationRequests::Bus::Handler
+    ~MockValidationComponent()
     {
-        AssetValidationTest()
-            : UnitTest::SetRestoreFileIOBaseRAII(m_fileIO)
+        AssetValidation::AssetValidationSystemComponent::Deactivate();
+        AZ::Data::AssetCatalogRequestBus::Handler::BusDisconnect();
+    }
+
+    void SeedMode() override
+    {
+        AssetValidation::AssetValidationSystemComponent::SeedMode();
+    }
+
+    bool IsKnownAsset(const char* fileName) override
+    {
+        return AssetValidation::AssetValidationSystemComponent::IsKnownAsset(fileName);
+    }
+
+    bool AddSeedAssetId(AZ::Data::AssetId assetId, AZ::u32 sourceId) override
+    {
+        return AssetValidation::AssetValidationSystemComponent::AddSeedAssetId(assetId, sourceId);
+    }
+
+    AZ::Data::AssetInfo GetAssetInfoById(const AZ::Data::AssetId& id) override
+    {
+        AZ::Data::AssetInfo result;
+
+        for (int slotNum = 0; slotNum < NumTestAssets; ++slotNum)
         {
-            if (!AZ::SettingsRegistry::Get())
+            const AZ::Data::AssetId& assetId = m_assetIds[slotNum];
+            if (assetId == id)
             {
-                AZ::SettingsRegistry::Register(&m_registry);
-
-                auto projectPathKey = AZ::SettingsRegistryInterface::FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey)
-                    + "/project_path";
-                m_registry.Set(projectPathKey, (AZ::IO::FixedMaxPath(m_tempDir.GetDirectory()) / "AutomatedTesting").Native());
-                AZ::SettingsRegistryMergeUtils::MergeSettingsToRegistry_AddRuntimeFilePaths(m_registry);
-
-                // Set the engine root to the temporary directory and re-update the runtime file paths
-                auto enginePathKey = AZ::SettingsRegistryInterface::FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey)
-                    + "/engine_path";
-                m_registry.Set(enginePathKey, m_tempDir.GetDirectory());
-                AZ::SettingsRegistryMergeUtils::MergeSettingsToRegistry_AddRuntimeFilePaths(m_registry);
+                result.m_assetId = id;
+                // Internal paths should be lower cased as from the cache
+                result.m_relativePath = AZStd::string::format("assetpath%d", slotNum);
+                break;
             }
         }
+        return result;
+    }
 
-        void NormalizePath(AZStd::string&) override
+    AZ::Outcome<AZStd::vector<AZ::Data::ProductDependency>, AZStd::string> GetAllProductDependencies(const AZ::Data::AssetId& id) override
+    {
+        AZStd::vector<AZ::Data::ProductDependency> dependencyList;
+        bool foundAsset{ false };
+        for (const AZ::Data::AssetId& assetId : m_assetIds)
         {
-            AZ_Assert(false, "Not implemented");
+            if (assetId == id)
+            {
+                foundAsset = true;
+            }
+            else if (foundAsset)
+            {
+                AZ::Data::ProductDependency thisDependency;
+                thisDependency.m_assetId = assetId;
+                dependencyList.emplace_back(AZ::Data::ProductDependency(assetId, {}));
+            }
         }
-
-        void NormalizePathKeepCase(AZStd::string&) override
+        if (dependencyList.size())
         {
-            AZ_Assert(false, "Not implemented");
+            return AZ::Success(dependencyList);
         }
+        return AZ::Failure(AZStd::string("Asset not found"));
+    }
 
-        void CalculateBranchTokenForEngineRoot([[maybe_unused]] AZStd::string& token) const override
+    bool TestAddSeedsFor(const AzFramework::AssetSeedList& seedList, AZ::u32 sourceId)
+    {
+        return AddSeedsFor(seedList, sourceId);
+    }
+
+    bool TestRemoveSeedsFor(const AzFramework::AssetSeedList& seedList, AZ::u32 sourceId)
+    {
+        return RemoveSeedsFor(seedList, sourceId);
+    }
+
+    bool TestAddSeedList(const char* seedListName)
+    {
+        return AddSeedList(seedListName);
+    }
+
+    bool TestRemoveSeedList(const char* seedListName)
+    {
+        return RemoveSeedList(seedListName);
+    }
+
+    AZ::Outcome<AzFramework::AssetSeedList, AZStd::string> LoadSeedList(const char* fileName, AZStd::string& seedFilepath) override
+    {
+        if (m_validSeedPath == fileName)
         {
-            AZ_Assert(false, "Not implemented");
+            seedFilepath = fileName;
+            return AZ::Success(m_validSeedList);
         }
+        return AZ::Failure(AZStd::string("Invalid List"));
+    }
 
-        void SetUp() override
+    AzFramework::AssetSeedList m_validSeedList;
+    AZStd::string m_validSeedPath;
+    AZ::Data::AssetId m_assetIds[NumTestAssets];
+};
+
+struct AssetValidationTest
+    : UnitTest::ScopedAllocatorSetupFixture,
+    UnitTest::SetRestoreFileIOBaseRAII,
+    AzFramework::ApplicationRequests::Bus::Handler
+{
+    AssetValidationTest() : UnitTest::SetRestoreFileIOBaseRAII(m_fileIO)
+    {
+        if (!AZ::SettingsRegistry::Get())
         {
-            AzFramework::ApplicationRequests::Bus::Handler::BusConnect();
+            AZ::SettingsRegistry::Register(&m_registry);
+
+            auto projectPathKey = AZ::SettingsRegistryInterface::FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey)
+                + "/project_path";
+            m_registry.Set(projectPathKey, (AZ::IO::FixedMaxPath(m_tempDir.GetDirectory()) / "AutomatedTesting").Native());
+            AZ::SettingsRegistryMergeUtils::MergeSettingsToRegistry_AddRuntimeFilePaths(m_registry);
+
+            // Set the engine root to the temporary directory and re-update the runtime file paths
+            auto enginePathKey = AZ::SettingsRegistryInterface::FixedValueString(AZ::SettingsRegistryMergeUtils::BootstrapSettingsRootKey)
+                + "/engine_path";
+            m_registry.Set(enginePathKey, m_tempDir.GetDirectory());
+            AZ::SettingsRegistryMergeUtils::MergeSettingsToRegistry_AddRuntimeFilePaths(m_registry);
         }
+    }
 
-        void TearDown() override
-        {
-            AzFramework::ApplicationRequests::Bus::Handler::BusDisconnect();
-        }
+    void NormalizePath(AZStd::string&) override
+    {
+        AZ_Assert(false, "Not implemented");
+    }
 
-        bool CreateDummyFile(const AZ::IO::Path& path, AZStd::string_view contents) const;
+    void NormalizePathKeepCase(AZStd::string&) override
+    {
+        AZ_Assert(false, "Not implemented");
+    }
 
-        AZ::IO::LocalFileIO m_fileIO;
-        AZ::Test::ScopedAutoTempDirectory m_tempDir;
-        AZ::SettingsRegistryImpl m_registry;
-    };
-}
+    void CalculateBranchTokenForEngineRoot([[maybe_unused]] AZStd::string& token) const override
+    {
+        AZ_Assert(false, "Not implemented");
+    }
+
+    void SetUp() override
+    {
+        using namespace ::testing;
+
+        ASSERT_TRUE(m_tempDir.IsValid());
+
+        AzFramework::ApplicationRequests::Bus::Handler::BusConnect();
+    }
+
+    void TearDown() override
+    {
+        AzFramework::ApplicationRequests::Bus::Handler::BusDisconnect();
+    }
+
+    bool CreateDummyFile(const char* path, const char* seedFileName, AZStd::string_view contents, AZStd::string& subfolderPath) const;
+
+    AZ::IO::LocalFileIO m_fileIO;
+    UnitTest::ScopedTemporaryDirectory m_tempDir;
+    AZ::SettingsRegistryImpl m_registry;
+};

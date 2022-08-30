@@ -462,7 +462,6 @@ namespace LUAEditor
         //save new state
         m_Info = newInfo;
         m_gui->m_luaTextEdit->document()->setModified(modifiedValue);
-        UpdateModifyFlag();
     }
 
     void LUAViewWidget::OnPlainTextFocusChanged(bool hasFocus)
@@ -526,17 +525,15 @@ namespace LUAEditor
 
     void LUAViewWidget::modificationChanged(bool m)
     {
-        EBUS_EVENT(Context_DocumentManagement::Bus, NotifyDocumentModified, m_Info.m_assetId, m);
-        UpdateModifyFlag();
-    }
-
-    void LUAViewWidget::UpdateModifyFlag() {
+        (void)m;
         QString displayName = QString::fromUtf8(m_Info.m_displayName.c_str());
         if (m_gui->m_luaTextEdit->document()->isModified())
         {
             displayName += "*";
         }
         this->luaDockWidget()->setWindowTitle(displayName);
+
+        EBUS_EVENT(Context_DocumentManagement::Bus, NotifyDocumentModified, m_Info.m_assetId, m);
     }
 
     void LUAViewWidget::UpdateCurrentExecutingLine(int lineNumber)

@@ -27,37 +27,35 @@ namespace AzFramework
     bool GetGemsInfo(AZStd::vector<GemInfo>& gemInfoList, AZ::SettingsRegistryInterface& settingsRegistry)
     {
         using FixedValueString = AZ::SettingsRegistryInterface::FixedValueString;
+        using Type = AZ::SettingsRegistryInterface::Type;
 
         auto GemSettingsVisitor = [&settingsRegistry, &gemInfoList]
-        (const AZ::SettingsRegistryInterface::VisitArgs& gemVisitArgs)
+        (AZStd::string_view gemObjectKeyPath, AZStd::string_view gemName, AZ::SettingsRegistryInterface::Type)
         {
-            auto FindGemInfoByName = [&gemVisitArgs](const GemInfo& gemInfo)
+            auto FindGemInfoByName = [gemName](const GemInfo& gemInfo)
             {
-                return gemVisitArgs.m_fieldName == gemInfo.m_gemName;
+                return gemName == gemInfo.m_gemName;
             };
             auto gemInfoFoundIter = AZStd::ranges::find_if(gemInfoList, FindGemInfoByName);
-            GemInfo& gemInfo = gemInfoFoundIter != gemInfoList.end() ? *gemInfoFoundIter : gemInfoList.emplace_back(gemVisitArgs.m_fieldName);
+            GemInfo& gemInfo = gemInfoFoundIter != gemInfoList.end() ? *gemInfoFoundIter : gemInfoList.emplace_back(gemName);
 
             // Read the Gem Target Name into target Name field
-            auto VisitGemTargets = [&gemInfo](const AZ::SettingsRegistryInterface::VisitArgs& visitArgs)
+            auto VisitGemTargets = [&gemInfo](AZStd::string_view, AZStd::string_view fieldName, Type)
             {
                 // Assume the fieldName is the name of the target in this case
-                gemInfo.m_gemTargetNames.emplace_back(visitArgs.m_fieldName);
-                return AZ::SettingsRegistryInterface::VisitResponse::Skip;
+                gemInfo.m_gemTargetNames.emplace_back(fieldName);
             };
             AZ::SettingsRegistryVisitorUtils::VisitObject(settingsRegistry, VisitGemTargets,
-                FixedValueString::format("%.*s/Targets", AZ_STRING_ARG(gemVisitArgs.m_jsonKeyPath)));
+                FixedValueString::format("%.*s/Targets", AZ_STRING_ARG(gemObjectKeyPath)));
 
             // Visit the "SourcePath" array fields of the gem to
             // populate the Gem Absolute Source Paths array
             const auto gemPathKey = FixedValueString::format("%s/%.*s/Path",
-                AZ::SettingsRegistryMergeUtils::ManifestGemsRootKey, AZ_STRING_ARG(gemVisitArgs.m_fieldName));
+                AZ::SettingsRegistryMergeUtils::ManifestGemsRootKey, AZ_STRING_ARG(gemName));
             if (AZ::IO::Path gemRootPath; settingsRegistry.Get(gemRootPath.Native(), gemPathKey))
             {
                 gemInfo.m_absoluteSourcePaths.emplace_back(gemRootPath);
             }
-
-            return AZ::SettingsRegistryInterface::VisitResponse::Skip;
         };
 
         AZ::SettingsRegistryVisitorUtils::VisitObject(settingsRegistry, GemSettingsVisitor,

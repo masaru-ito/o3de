@@ -64,7 +64,7 @@ namespace AZ
             , public AzFramework::BoundsRequestBus::Handler
             , public AzFramework::RenderGeometry::IntersectionRequestBus::Handler
             , private TransformNotificationBus::Handler
-            , private MaterialConsumerRequestBus::Handler
+            , private MaterialReceiverRequestBus::Handler
             , private MaterialComponentNotificationBus::Handler
         {
         public:
@@ -134,7 +134,7 @@ namespace AZ
             // TransformNotificationBus::Handler overrides ...
             void OnTransformChanged(const AZ::Transform& local, const AZ::Transform& world) override;
 
-            // MaterialConsumerRequestBus::Handler overrides ...
+            // MaterialReceiverRequestBus::Handler overrides ...
             MaterialAssignmentId FindMaterialAssignmentId(
                 const MaterialAssignmentLodIndex lod, const AZStd::string& label) const override;
             MaterialAssignmentLabelMap GetMaterialLabels() const override;

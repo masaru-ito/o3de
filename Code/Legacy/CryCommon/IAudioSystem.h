@@ -578,32 +578,43 @@ namespace Audio
     namespace Gem
     {
         ///////////////////////////////////////////////////////////////////////////////////////////////
-        // Audio initialization loads resources that may not be ready until after
-        // component application (and AP) is fully up, so it is delayed until CSystem::Init.
-        // Similarly, release is called in CSystem::ShutDown.
-        class SystemBusInterface
+        // Used for initializing and releasing the audio system (AudioSystem/ATL) code.
+        class AudioSystemGemRequests
             : public AZ::EBusTraits
         {
         public:
-            virtual ~SystemBusInterface() = default;
-
             ///////////////////////////////////////////////////////////////////////////////////////////
             // EBusTraits overrides
             static const AZ::EBusHandlerPolicy HandlerPolicy = AZ::EBusHandlerPolicy::Single;
             static const AZ::EBusAddressPolicy AddressPolicy = AZ::EBusAddressPolicy::Single;
             ///////////////////////////////////////////////////////////////////////////////////////////
+
+            // Interface methods
+            virtual bool Initialize(const SSystemInitParams* initParams) = 0;
+            virtual void Release() = 0;
+        };
+
+        using AudioSystemGemRequestBus = AZ::EBus<AudioSystemGemRequests>;
+
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////
+        // Used for initializing and releasing the audio engine (middleware layer) code.
+        class AudioEngineGemRequests
+            : public AZ::EBusTraits
+        {
+        public:
+            ///////////////////////////////////////////////////////////////////////////////////////////
+            // EBusTraits overrides
+            static const AZ::EBusHandlerPolicy HandlerPolicy = AZ::EBusHandlerPolicy::Single;
+            static const AZ::EBusAddressPolicy AddressPolicy = AZ::EBusAddressPolicy::Single;
+            ///////////////////////////////////////////////////////////////////////////////////////////
+
             // Interface methods
             virtual bool Initialize() = 0;
             virtual void Release() = 0;
-            ///////////////////////////////////////////////////////////////////////////////////////////
         };
 
-        // SystemRequestBus is used with AudioSystem Gem
-        class SystemRequests : public SystemBusInterface {};
-        using SystemRequestBus = AZ::EBus<SystemRequests>;
-        // EngineRequestBus is used with AudioEngine* Gem
-        class EngineRequests : public SystemBusInterface {};
-        using EngineRequestBus = AZ::EBus<EngineRequests>;
+        using AudioEngineGemRequestBus = AZ::EBus<AudioEngineGemRequests>;
 
     } // namespace Gem
 

@@ -56,9 +56,6 @@ namespace AZ
                 m_attachments[index] = imageView;
             }
 
-            // Set the FrameBuffer size from the first attachment
-            SetSizeFromAttachment();
-
             // In case an imageView is stale, native framebuffer will be createted by OnResourceInvalidate() soon later.
             if (!attachmentIsStale)
             {
@@ -80,27 +77,10 @@ namespace AZ
             return m_renderPass.get();
         }
 
-        RHI::Size GetImageViewSize(RHI::ConstPtr<ImageView> view)
-        {
-            auto imageSize = view->GetImage().GetDescriptor().m_size;
-            RHI::Size viewSize;
-            viewSize.m_width = imageSize.m_width >> view->GetDescriptor().m_mipSliceMin;
-            viewSize.m_height = imageSize.m_height >> view->GetDescriptor().m_mipSliceMin;
-            viewSize.m_depth = imageSize.m_depth;
-            return viewSize;
-        }
-
-        void Framebuffer::SetSizeFromAttachment()
-        {
-            if (!m_attachments.empty())
-            {
-                m_size = GetImageViewSize(m_attachments.front());
-            }
-        }
-
         const RHI::Size& Framebuffer::GetSize() const
         {
-            return m_size;
+            static const RHI::Size safeSize;
+            return m_attachments.size() ? m_attachments.front()->GetImage().GetDescriptor().m_size : safeSize;
         }
 
         void Framebuffer::SetNameInternal(const AZStd::string_view& name)
@@ -158,8 +138,8 @@ namespace AZ
             createInfo.renderPass = m_renderPass->GetNativeRenderPass();
             createInfo.attachmentCount = static_cast<uint32_t>(imageViews.size());
             createInfo.pAttachments = imageViews.data();
-            createInfo.width = m_size.m_width;
-            createInfo.height = m_size.m_height;
+            createInfo.width = GetSize().m_width;
+            createInfo.height = GetSize().m_height;
             createInfo.layers = 1;
             
             auto& device = static_cast<Device&>(GetDevice());
@@ -171,10 +151,11 @@ namespace AZ
 
         bool Framebuffer::AreResourcesReady() const
         {
+            const RHI::Size& size = GetSize();
             for (size_t index = 0; index < m_attachments.size(); ++index)
             {
                 const RHI::ConstPtr<ImageView>& imageView = m_attachments[index];
-                if (imageView->IsStale() || GetImageViewSize(imageView) != m_size)
+                if (imageView->IsStale() || imageView->GetImage().GetDescriptor().m_size != size)
                 {
                     return false;
                 }

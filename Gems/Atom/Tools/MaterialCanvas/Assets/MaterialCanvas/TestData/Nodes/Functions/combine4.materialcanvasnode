@@ -5,7 +5,7 @@
     "ClassData": {
         "id": "{B49B9177-73FD-4ADF-B9BC-489A3E1EA0DB}",
         "category": "Math Functions",
-        "title": "combine4",
+        "title": "Combine 4",
         "inputSlots": [
             {
                 "name": "inX",

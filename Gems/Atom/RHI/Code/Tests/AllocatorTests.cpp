@@ -298,7 +298,7 @@ namespace UnitTest
         // contiguous, so fragmentation remains 0
         ASSERT_EQ(allocator.ComputeFragmentation(), 0.f);
 
-        allocator.Allocate(256, 0);
+        auto address1 = allocator.Allocate(256, 0);
         // Same after the second allocation. The free memory is one large block at the end
         ASSERT_EQ(allocator.ComputeFragmentation(), 0.f);
 

@@ -54,7 +54,7 @@ namespace AzToolsFramework
                 return false;
             }
 
-            InstanceOptionalReference focusedInstance = prefabFocusInterface->GetFocusedPrefabInstance(s_editorEntityContextId);
+            InstanceOptionalConstReference focusedInstance = prefabFocusInterface->GetFocusedPrefabInstance(s_editorEntityContextId);
             if (!focusedInstance.has_value())
             {
                 AZ_Assert(false, "Prefab - InstanceDomGenerator::GenerateInstanceDom - "

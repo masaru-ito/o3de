@@ -71,6 +71,7 @@ namespace Audio
     ///////////////////////////////////////////////////////////////////////////////////////////////////
     CAudioEventManager::~CAudioEventManager()
     {
+        Release();
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -212,7 +213,7 @@ namespace Audio
 
             if (!pEvent)
             {
-                AZLOG_ERROR("%s", "Failed to get a new instance of an ATLEvent from the implementation.");
+                AZLOG_ERROR("Failed to get a new instance of an ATLEvent from the implementation.");
             }
         }
 
@@ -466,7 +467,7 @@ namespace Audio
 
             if (!pObject)
             {
-                AZLOG_ERROR("%s", "Failed to get a new instance of an AudioObject from the implementation. "
+                AZLOG_ERROR("Failed to get a new instance of an AudioObject from the implementation. "
                     "If this limit was reached from legitimate content creation and not a scripting error, "
                     "try increasing the Capacity of Audio::AudioSystemAllocator.");
                 //failed to get a new instance from the implementation
@@ -688,6 +689,7 @@ namespace Audio
     ///////////////////////////////////////////////////////////////////////////////////////////////////
     CAudioListenerManager::~CAudioListenerManager()
     {
+        Release();
     }
 
     ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -720,27 +722,21 @@ namespace Audio
         {
             m_cActiveListeners.erase(m_nDefaultListenerID);
 
-            AudioSystemImplementationRequestBus::Broadcast(
-                &AudioSystemImplementationRequestBus::Events::DeleteAudioListenerObjectData, m_pDefaultListenerObject->m_pImplData);
+            AudioSystemImplementationRequestBus::Broadcast(&AudioSystemImplementationRequestBus::Events::DeleteAudioListenerObjectData, m_pDefaultListenerObject->m_pImplData);
             azdestroy(m_pDefaultListenerObject, Audio::AudioSystemAllocator);
             m_pDefaultListenerObject = nullptr;
         }
 
-        // Release any remaining active audio listeners
-        for (auto listenerPair : m_cActiveListeners)
+        // Release any remaining active audio listeners back to the listener pool
+        for (auto listener : m_cActiveListeners)
         {
-            AudioSystemImplementationRequestBus::Broadcast(
-                &AudioSystemImplementationRequestBus::Events::DeleteAudioListenerObjectData, listenerPair.second->m_pImplData);
-            azdestroy(listenerPair.second, Audio::AudioSystemAllocator);
+            ReleaseID(listener.first);
         }
 
-        m_cActiveListeners.clear();
-
-        // Delete all remaining listeners from the audio listener pool
+        // Delete all from the audio listener pool
         for (auto listener : m_cListenerPool)
         {
-            AudioSystemImplementationRequestBus::Broadcast(
-                &AudioSystemImplementationRequestBus::Events::DeleteAudioListenerObjectData, listener->m_pImplData);
+            AudioSystemImplementationRequestBus::Broadcast(&AudioSystemImplementationRequestBus::Events::DeleteAudioListenerObjectData, listener->m_pImplData);
             azdestroy(listener, Audio::AudioSystemAllocator);
         }
 
@@ -765,7 +761,7 @@ namespace Audio
         }
         else
         {
-            AZLOG_WARN("%s", "CAudioListenerManager::ReserveID - Reserved pool of pre-allocated Audio Listeners has been exhausted!");
+            AZLOG_WARN("CAudioListenerManager::ReserveID - Reserved pool of pre-allocated Audio Listeners has been exhausted!");
         }
 
         return bSuccess;

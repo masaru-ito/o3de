@@ -585,27 +585,55 @@ namespace AzFramework
     }
 
     struct DeprecatedAliasesKeyVisitor
-        : AZ::SettingsRegistryVisitorUtils::ArrayVisitor
+        : AZ::SettingsRegistryInterface::Visitor
     {
-        using VisitArgs = AZ::SettingsRegistryInterface::VisitArgs;
+        using VisitResponse = AZ::SettingsRegistryInterface::VisitResponse;
+        using VisitAction = AZ::SettingsRegistryInterface::VisitAction;
+        using Type = AZ::SettingsRegistryInterface::Type;
 
         using AZ::SettingsRegistryInterface::Visitor::Visit;
 
-        AZ::SettingsRegistryInterface::VisitResponse Visit(const VisitArgs& visitArgs) override
+        VisitResponse Traverse(AZStd::string_view path, AZStd::string_view,
+            VisitAction action, Type type) override
         {
-            using FixedValueString = AZ::SettingsRegistryInterface::FixedValueString;
-            AliasPair aliasPair;
-            const auto oldAliasKeyPath = FixedValueString::format("%.*s/%s", AZ_STRING_ARG(visitArgs.m_jsonKeyPath),
-                ApplicationInternal::DeprecatedFileIOAliasesOldAliasKey);
-            const auto newAliasKeyPath = FixedValueString::format("%.*s/%s", AZ_STRING_ARG(visitArgs.m_jsonKeyPath),
-                ApplicationInternal::DeprecatedFileIOAliasesNewAliasKey);
-            if (visitArgs.m_registry.Get(aliasPair.m_oldAlias, oldAliasKeyPath)
-                && visitArgs.m_registry.Get(aliasPair.m_newAlias, newAliasKeyPath))
+            if (action == AZ::SettingsRegistryInterface::VisitAction::Begin)
             {
-                m_aliases.emplace_back(AZStd::move(aliasPair));
+                if (type == AZ::SettingsRegistryInterface::Type::Array)
+                {
+                    m_parentArrayPath = path;
+                }
+
+                // Strip off last path segment from json path and check if is a child element of the array
+                if (AZ::StringFunc::TokenizeLast(path, '/');
+                    m_parentArrayPath == path)
+                {
+                    m_aliases.emplace_back();
+                }
+            }
+            else if (action == AZ::SettingsRegistryInterface::VisitAction::End)
+            {
+                if (type == AZ::SettingsRegistryInterface::Type::Array)
+                {
+                    m_parentArrayPath = AZStd::string{};
+                }
             }
 
-            return AZ::SettingsRegistryInterface::VisitResponse::Skip;
+            return AZ::SettingsRegistryInterface::VisitResponse::Continue;
+        }
+
+        void Visit(AZStd::string_view, AZStd::string_view valueName, Type, AZStd::string_view value) override
+        {
+            if (!m_aliases.empty())
+            {
+                if (valueName == ApplicationInternal::DeprecatedFileIOAliasesOldAliasKey)
+                {
+                    m_aliases.back().m_oldAlias = value;
+                }
+                else if (valueName == ApplicationInternal::DeprecatedFileIOAliasesNewAliasKey)
+                {
+                    m_aliases.back().m_newAlias = value;
+                }
+            }
         }
 
         struct AliasPair
@@ -614,6 +642,9 @@ namespace AzFramework
             AZStd::string m_newAlias;
         };
         AZStd::vector<AliasPair> m_aliases;
+
+    private:
+        AZStd::string m_parentArrayPath;
     };
 
     static void CreateUserCache(const AZ::IO::FixedMaxPath& cacheUserPath, AZ::IO::FileIOBase& fileIoBase)
@@ -708,8 +739,8 @@ namespace AzFramework
             fileIoBase->SetAlias("@log@", projectLogPath.c_str());
             fileIoBase->CreatePath(projectLogPath.c_str());
 
-            if (DeprecatedAliasesKeyVisitor visitor;
-                m_settingsRegistry->Visit(visitor, ApplicationInternal::DeprecatedFileIOAliasesRoot))
+            DeprecatedAliasesKeyVisitor visitor;
+            if (m_settingsRegistry->Visit(visitor, ApplicationInternal::DeprecatedFileIOAliasesRoot))
             {
                 for (const auto& [oldAlias, newAlias] : visitor.m_aliases)
                 {
@@ -719,6 +750,7 @@ namespace AzFramework
 
             // The following section sets the @gemroot:<gem-name>@ alias for
             // every loaded gem
+            using Type = AZ::SettingsRegistryInterface::Type;
             using FixedValueString = AZ::SettingsRegistryInterface::FixedValueString;
             auto AddGemAlias = [&fileIoBase](AZStd::string_view gemName, AZStd::string_view gemRootPath)
             {
@@ -730,17 +762,15 @@ namespace AzFramework
 
             // Load any Filesystem aliases from the SettingsRegistry
             auto SetAliasesFromSettingsRegistry = [&fileIoBase, &settingsRegistry = *m_settingsRegistry]
-                (const AZ::SettingsRegistryInterface::VisitArgs& visitArgs)
+                (AZStd::string_view aliasJsonPath, AZStd::string_view aliasKey, Type)
             {
-                if (AZ::IO::FixedMaxPath aliasPath; settingsRegistry.Get(aliasPath.Native(), visitArgs.m_jsonKeyPath))
+                if (AZ::IO::FixedMaxPath aliasPath; settingsRegistry.Get(aliasPath.Native(), aliasJsonPath))
                 {
                     if (AZ::IO::SystemFile::Exists(aliasPath.c_str()))
                     {
-                        fileIoBase->SetAlias(FixedValueString(visitArgs.m_fieldName).c_str(), aliasPath.c_str());
+                        fileIoBase->SetAlias(FixedValueString(aliasKey).c_str(), aliasPath.c_str());
                     }
                 }
-
-                return AZ::SettingsRegistryInterface::VisitResponse::Skip;
             };
             AZ::SettingsRegistryVisitorUtils::VisitObject(*m_settingsRegistry, SetAliasesFromSettingsRegistry,
                 ApplicationInternal::FilesystemAliasesRoot);

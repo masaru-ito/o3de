@@ -25,7 +25,7 @@ namespace AudioEngineWwiseGem
 {
     class AudioEngineWwiseGemSystemComponent
         : public AZ::Component
-        , protected Audio::Gem::EngineRequestBus::Handler
+        , protected Audio::Gem::AudioEngineGemRequestBus::Handler
     #if defined(AUDIO_ENGINE_WWISE_EDITOR)
         , protected AudioControlsEditor::EditorImplPluginEventBus::Handler
     #endif // AUDIO_ENGINE_WWISE_EDITOR
@@ -42,7 +42,7 @@ namespace AudioEngineWwiseGem
 
     protected:
         ////////////////////////////////////////////////////////////////////////
-        // Audio::Gem::EngineRequestBus interface implementation
+        // Audio::Gem::AudioEngineGemRequestBus interface implementation
         bool Initialize() override;
         void Release() override;
         ////////////////////////////////////////////////////////////////////////

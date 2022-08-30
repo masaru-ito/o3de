@@ -102,7 +102,7 @@ namespace AZ
 
         void MaterialComponentController::GetRequiredServices(AZ::ComponentDescriptor::DependencyArrayType& required)
         {
-            required.push_back(AZ_CRC_CE("MaterialConsumerService"));
+            required.push_back(AZ_CRC_CE("MaterialReceiverService"));
         }
 
         MaterialComponentController::MaterialComponentController(const MaterialComponentConfig& config)
@@ -117,14 +117,14 @@ namespace AZ
             m_queuedMaterialUpdateNotification = false;
 
             MaterialComponentRequestBus::Handler::BusConnect(m_entityId);
-            MaterialConsumerNotificationBus::Handler::BusConnect(m_entityId);
+            MaterialReceiverNotificationBus::Handler::BusConnect(m_entityId);
             LoadMaterials();
         }
 
         void MaterialComponentController::Deactivate()
         {
             MaterialComponentRequestBus::Handler::BusDisconnect();
-            MaterialConsumerNotificationBus::Handler::BusDisconnect();
+            MaterialReceiverNotificationBus::Handler::BusDisconnect();
 
             ReleaseMaterials();
 
@@ -203,8 +203,8 @@ namespace AZ
             // Clear any previously loaded or queued material assets, instances, or notifications
             ReleaseMaterials();
 
-            MaterialConsumerRequestBus::EventResult(
-                m_defaultMaterialMap, m_entityId, &MaterialConsumerRequestBus::Events::GetDefautMaterialMap);
+            MaterialReceiverRequestBus::EventResult(
+                m_defaultMaterialMap, m_entityId, &MaterialReceiverRequestBus::Events::GetDefautMaterialMap);
 
             // Build tables of all referenced materials so that we can load and look up defaults
             for (const auto& [materialAssignmentId, materialAssignment] : m_defaultMaterialMap)
@@ -312,8 +312,8 @@ namespace AZ
             const MaterialAssignmentLodIndex lod, const AZStd::string& label) const
         {
             MaterialAssignmentId materialAssignmentId;
-            MaterialConsumerRequestBus::EventResult(
-                materialAssignmentId, m_entityId, &MaterialConsumerRequestBus::Events::FindMaterialAssignmentId, lod, label);
+            MaterialReceiverRequestBus::EventResult(
+                materialAssignmentId, m_entityId, &MaterialReceiverRequestBus::Events::FindMaterialAssignmentId, lod, label);
             return materialAssignmentId;
         }
 
@@ -326,7 +326,7 @@ namespace AZ
         AZStd::string MaterialComponentController::GetMaterialLabel(const MaterialAssignmentId& materialAssignmentId) const
         {
             MaterialAssignmentLabelMap labels;
-            MaterialConsumerRequestBus::EventResult(labels, m_entityId, &MaterialConsumerRequestBus::Events::GetMaterialLabels);
+            MaterialReceiverRequestBus::EventResult(labels, m_entityId, &MaterialReceiverRequestBus::Events::GetMaterialLabels);
 
             auto labelIt = labels.find(materialAssignmentId);
             return labelIt != labels.end() ? labelIt->second : "<unknown>";

@@ -13,6 +13,9 @@ namespace AZ
 {
     namespace DX12
     {
+        static const uint32_t HLSL_RootConstantRegister = 0;
+        static const uint32_t HLSL_RootConstantRegisterSpace = RHI::Limits::Pipeline::ShaderResourceGroupCountMax;
+
         PipelineLayout::PipelineLayout(PipelineLayoutCache& parentCache)
             : m_parentCache{&parentCache}
         {}

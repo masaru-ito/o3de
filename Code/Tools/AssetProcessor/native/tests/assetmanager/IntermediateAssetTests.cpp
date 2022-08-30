@@ -10,8 +10,6 @@
 #include <QCoreApplication>
 #include <native/unittests/UnitTestRunner.h>
 
-#include <AzFramework/IO/LocalFileIO.h>
-
 namespace UnitTests
 {
     AssetBuilderSDK::CreateJobFunction CreateJobStage(

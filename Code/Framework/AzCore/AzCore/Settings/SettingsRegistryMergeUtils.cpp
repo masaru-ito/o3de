@@ -89,9 +89,10 @@ namespace AZ::Internal
             {
                 using AZ::SettingsRegistryInterface::Visitor::Visit;
                 void Visit(
-                    const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, AZStd::string_view value) override
+                    [[maybe_unused]] AZStd::string_view path, AZStd::string_view valueName,
+                    [[maybe_unused]] AZ::SettingsRegistryInterface::Type type, AZStd::string_view value) override
                 {
-                    m_enginePaths.emplace_back(EngineInfo{ AZ::IO::FixedMaxPath{value}.LexicallyNormal(), FixedValueString{visitArgs.m_fieldName} });
+                    m_enginePaths.emplace_back(EngineInfo{ AZ::IO::FixedMaxPath{value}.LexicallyNormal(), FixedValueString{valueName} });
                     // Make sure any engine paths read from the manifest are absolute
                     AZ::IO::FixedMaxPath& recentEnginePath = m_enginePaths.back().m_path;
                     if (recentEnginePath.IsRelative())
@@ -620,13 +621,14 @@ namespace AZ::SettingsRegistryMergeUtils
             {}
 
             using AZ::SettingsRegistryInterface::Visitor::Visit;
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, bool value) override
+            void Visit([[maybe_unused]] AZStd::string_view path, AZStd::string_view valueName,
+                [[maybe_unused]] AZ::SettingsRegistryInterface::Type type, bool value) override
             {
                 if (value)
                 {
                     // The specialization is the key itself.
                     // The value is just used to determine if the specialization should be added
-                    m_settingsSpecialization.Append(visitArgs.m_fieldName);
+                    m_settingsSpecialization.Append(valueName);
                 }
             }
             SettingsRegistryInterface::Specializations& m_settingsSpecialization;
@@ -1150,14 +1152,14 @@ namespace AZ::SettingsRegistryMergeUtils
             : AZ::SettingsRegistryInterface::Visitor
         {
             using AZ::SettingsRegistryInterface::Visitor::Visit;
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs,
-                AZStd::string_view value) override
+            void Visit(AZStd::string_view, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type
+                , AZStd::string_view value) override
             {
-                if (visitArgs.m_fieldName == "Option" && !value.empty())
+                if (valueName == "Option" && !value.empty())
                 {
-                    m_arguments.push_back(AZStd::string::format("--%.*s", AZ_STRING_ARG(value)));
+                    m_arguments.push_back(AZStd::string::format("--%.*s", aznumeric_cast<int>(value.size()), value.data()));
                 }
-                else if (visitArgs.m_fieldName == "Value" && !value.empty())
+                else if (valueName == "Value" && !value.empty())
                 {
                     // Make sure value types are in quotes in case they start with a command option prefix
                     m_arguments.push_back(QuoteArgument(value));
@@ -1166,7 +1168,7 @@ namespace AZ::SettingsRegistryMergeUtils
 
             AZStd::string QuoteArgument(AZStd::string_view arg)
             {
-                return !arg.empty() ? AZStd::string::format(R"("%.*s")", AZ_STRING_ARG(arg)) : AZStd::string{arg};
+                return !arg.empty() ? AZStd::string::format(R"("%.*s")", aznumeric_cast<int>(arg.size()), arg.data()) : AZStd::string{ arg };
             }
 
             // The first parameter is skipped by the ComamndLine::Parse function so initialize
@@ -1259,18 +1261,19 @@ namespace AZ::SettingsRegistryMergeUtils
                 return true;
             }
             AZ::SettingsRegistryInterface::VisitResponse Traverse(
-                const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, AZ::SettingsRegistryInterface::VisitAction action) override
+                AZStd::string_view path, AZStd::string_view valueName, AZ::SettingsRegistryInterface::VisitAction action,
+                AZ::SettingsRegistryInterface::Type type) override
             {
                 // Pass the pointer path to the inclusion filter if available
-                if (m_dumperSettings.m_includeFilter && !m_dumperSettings.m_includeFilter(visitArgs.m_jsonKeyPath))
+                if (m_dumperSettings.m_includeFilter && !m_dumperSettings.m_includeFilter(path))
                 {
                     return AZ::SettingsRegistryInterface::VisitResponse::Skip;
                 }
 
                 if (action == AZ::SettingsRegistryInterface::VisitAction::Begin)
                 {
-                    m_result = m_result && WriteName(visitArgs.m_fieldName);
-                    if (visitArgs.m_type.m_type == AZ::SettingsRegistryInterface::Type::Object)
+                    m_result = m_result && WriteName(valueName);
+                    if (type == AZ::SettingsRegistryInterface::Type::Object)
                     {
                         m_result = m_result && m_writer.StartObject();
                         if (m_result)
@@ -1289,7 +1292,7 @@ namespace AZ::SettingsRegistryMergeUtils
                 }
                 else if (action == AZ::SettingsRegistryInterface::VisitAction::End)
                 {
-                    if (visitArgs.m_type.m_type == AZ::SettingsRegistryInterface::Type::Object)
+                    if (type == AZ::SettingsRegistryInterface::Type::Object)
                     {
                         m_result = m_result && m_writer.EndObject();
                     }
@@ -1302,9 +1305,9 @@ namespace AZ::SettingsRegistryMergeUtils
                 }
                 else
                 {
-                    if (visitArgs.m_type.m_type == AZ::SettingsRegistryInterface::Type::Null)
+                    if (type == AZ::SettingsRegistryInterface::Type::Null)
                     {
-                        m_result = m_result && WriteName(visitArgs.m_fieldName) && m_writer.Null();
+                        m_result = m_result && WriteName(valueName) && m_writer.Null();
                     }
                 }
 
@@ -1313,29 +1316,29 @@ namespace AZ::SettingsRegistryMergeUtils
                     AZ::SettingsRegistryInterface::VisitResponse::Done;
             }
 
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, bool value) override
+            void Visit(AZStd::string_view, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type, bool value) override
             {
-                m_result = m_result && WriteName(visitArgs.m_fieldName) && m_writer.Bool(value);
+                m_result = m_result && WriteName(valueName) && m_writer.Bool(value);
             }
 
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, AZ::s64 value) override
+            void Visit(AZStd::string_view, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type, AZ::s64 value) override
             {
-                m_result = m_result && WriteName(visitArgs.m_fieldName) && m_writer.Int64(value);
+                m_result = m_result && WriteName(valueName) && m_writer.Int64(value);
             }
 
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, AZ::u64 value) override
+            void Visit(AZStd::string_view, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type, AZ::u64 value) override
             {
-                m_result = m_result && WriteName(visitArgs.m_fieldName) && m_writer.Uint64(value);
+                m_result = m_result && WriteName(valueName) && m_writer.Uint64(value);
             }
 
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, double value) override
+            void Visit(AZStd::string_view, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type, double value) override
             {
-                m_result = m_result && WriteName(visitArgs.m_fieldName) && m_writer.Double(value);
+                m_result = m_result && WriteName(valueName) && m_writer.Double(value);
             }
 
-            void Visit(const AZ::SettingsRegistryInterface::VisitArgs& visitArgs, AZStd::string_view value) override
+            void Visit(AZStd::string_view, AZStd::string_view valueName, AZ::SettingsRegistryInterface::Type, AZStd::string_view value) override
             {
-                m_result = m_result && WriteName(visitArgs.m_fieldName) && m_writer.String(value.data(), aznumeric_caster(value.size()));
+                m_result = m_result && WriteName(valueName) && m_writer.String(value.data(), aznumeric_caster(value.size()));
             }
 
             bool Finalize()
@@ -1401,32 +1404,25 @@ namespace AZ::SettingsRegistryMergeUtils
 
     bool IsPathAncestorDescendantOrEqual(AZStd::string_view candidatePath, AZStd::string_view inputPath)
     {
-        const AZ::IO::PathView candidateView{ candidatePath, AZ::IO::PosixPathSeparator };
-        const AZ::IO::PathView inputView{ inputPath, AZ::IO::PosixPathSeparator };
+        AZ::IO::PathView candidateView{ candidatePath, AZ::IO::PosixPathSeparator };
+        AZ::IO::PathView inputView{ inputPath, AZ::IO::PosixPathSeparator };
         return inputView.empty() || candidateView.IsRelativeTo(inputView) || inputView.IsRelativeTo(candidateView);
-    }
-
-    bool IsPathDescendantOrEqual(AZStd::string_view candidatePath, AZStd::string_view inputPath)
-    {
-        const AZ::IO::PathView candidateView{ candidatePath, AZ::IO::PosixPathSeparator };
-        const AZ::IO::PathView inputView{ inputPath, AZ::IO::PosixPathSeparator };
-        return inputView.IsRelativeTo(candidateView);
     }
 
     void VisitActiveGems(SettingsRegistryInterface& registry, const GemCallback& activeGemCallback)
     {
         using FixedValueString = AZ::SettingsRegistryInterface::FixedValueString;
+        using Type = AZ::SettingsRegistryInterface::Type;
 
-        auto VisitGem = [&registry, &activeGemCallback](const AZ::SettingsRegistryInterface::VisitArgs& visitArgs)
+        auto VisitGem = [&registry, &activeGemCallback](AZStd::string_view, AZStd::string_view gemName, Type)
         {
             // Lookup the Gem Path underneath the `ManifestGemsRootKey/<gem-name>` field
-            const auto gemPathKey = FixedValueString::format("%s/%.*s/Path", ManifestGemsRootKey, AZ_STRING_ARG(visitArgs.m_fieldName));
+            const auto gemPathKey = FixedValueString::format("%s/%.*s/Path", ManifestGemsRootKey, AZ_STRING_ARG(gemName));
 
             if (AZ::IO::FixedMaxPath gemPath; registry.Get(gemPath.Native(), gemPathKey))
             {
-                activeGemCallback(visitArgs.m_fieldName, gemPath.Native());
+                activeGemCallback(gemName, gemPath.Native());
             }
-            return AZ::SettingsRegistryInterface::VisitResponse::Skip;
         };
         SettingsRegistryVisitorUtils::VisitObject(registry, VisitGem, ActiveGemsRootKey);
     }
@@ -1459,11 +1455,12 @@ namespace AZ::SettingsRegistryMergeUtils
         gemManifestCallback(manifestObjectKey, manifestObjectName, manifestRootDirView.Native());
 
         // Visit children external subdirectories
+        using Type = AZ::SettingsRegistryInterface::Type;
         auto VisitExternalSubdirectories = [&gemManifestCallback, &manifestJsonRegistry, manifestRootDirView]
-        (const AZ::SettingsRegistryInterface::VisitArgs& visitArgs)
+        (AZStd::string_view externalSubdirectoryJsonPath, AZStd::string_view, Type)
         {
             if (FixedValueString externalSubdirectoryPath;
-                manifestJsonRegistry.Get(externalSubdirectoryPath, visitArgs.m_jsonKeyPath))
+                manifestJsonRegistry.Get(externalSubdirectoryPath, externalSubdirectoryJsonPath))
             {
                 auto gemManifestPath = (AZ::IO::FixedMaxPath(manifestRootDirView)
                     / externalSubdirectoryPath / Internal::GemJsonFilename).LexicallyNormal();
@@ -1472,7 +1469,6 @@ namespace AZ::SettingsRegistryMergeUtils
                     VisitManifestJson(gemManifestCallback, gemManifestPath.Native(), GemNameKey);
                 }
             }
-            return AZ::SettingsRegistryInterface::VisitResponse::Skip;
         };
 
         AZ::SettingsRegistryVisitorUtils::VisitArray(manifestJsonRegistry, VisitExternalSubdirectories, ExternalSubdirectoriesKey);
